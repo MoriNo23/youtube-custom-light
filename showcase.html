@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="es" dark>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>YouTube Custom Light 1.2.0 — vista previa</title>
+<script>
+/* ------------------------------------------------------------------
+   matchMedia shim — installed BEFORE the userscript loads.
+
+   The userscript reads window.matchMedia() to build its adaptive
+   profile. Overriding it here lets the preview simulate OS
+   accessibility preferences (prefers-contrast, forced-colors,
+   prefers-reduced-motion, prefers-reduced-transparency) that a
+   desktop browser cannot otherwise be talked into.
+
+   Nothing in youtube-custom-light.user.js is modified: it calls the
+   same API, it just gets answers from a table we control.
+------------------------------------------------------------------ */
+(function () {
+  var state = {
+    '(prefers-contrast: more)': false,
+    '(prefers-contrast: custom)': false,
+    '(forced-colors: active)': false,
+    '(prefers-reduced-motion: reduce)': false,
+    '(prefers-reduced-transparency: reduce)': false,
+    '(max-width: 760px)': false
+  };
+  var registry = Object.create(null);
+
+  function listeners(query) {
+    if (!registry[query]) registry[query] = [];
+    return registry[query];
+  }
+
+  function makeQuery(query) {
+    return {
+      media: query,
+      get matches() { return !!state[query]; },
+      addEventListener: function (type, fn) { if (type === 'change') listeners(query).push(fn); },
+      removeEventListener: function (type, fn) {
+        if (type !== 'change') return;
+        var list = listeners(query);
+        var i = list.indexOf(fn);
+        if (i !== -1) list.splice(i, 1);
+      },
+      // Legacy API, still exercised by the script's fallback branch.
+      addListener: function (fn) { listeners(query).push(fn); },
+      removeListener: function () {},
+      dispatchEvent: function () { return true; }
+    };
+  }
+
+  window.matchMedia = makeQuery;
+
+  window.__yclPreview = {
+    set: function (query, value) {
+      state[query] = !!value;
+      listeners(query).slice().forEach(function (fn) {
+        try { fn(makeQuery(query)); } catch (e) { /* keep the demo alive */ }
+      });
+    },
+    state: state
+  };
+})();
+</script>
+<style>
+  /* ------------------------------------------------------------------
+     Token mirror. The userscript only ever writes YouTube's own custom
+     properties, so declaring them here makes its real CSS apply
+     verbatim — including the high/maximum-contrast palettes and the
+     density margins.
+  ------------------------------------------------------------------ */
+  html {
+    --yt-sys-color-baseline--base-background: #0f0f0f;
+    --yt-sys-color-baseline--raised-background: #212121;
+    --yt-sys-color-baseline--menu-background: #282828;
+    --yt-sys-color-baseline--inverted-background: #ffffff;
+    --yt-sys-color-baseline--text-primary: #f1f1f1;
+    --yt-sys-color-baseline--text-secondary: #aaaaaa;
+    --yt-sys-color-baseline--text-disabled: #717171;
+    --yt-sys-color-baseline--outline: rgba(255,255,255,0.2);
+    --yt-sys-color-baseline--tonal-rim: rgba(255,255,255,0.1);
+    --yt-sys-color-baseline--call-to-action: #3ea6ff;
+    --yt-sys-color-baseline--call-to-action-inverse: #0b57d0;
+    --yt-sys-color-baseline--additive-background: rgba(255,255,255,0.1);
+    --yt-sys-color-baseline--overlay-background-medium: rgba(0,0,0,0.6);
+    --yt-sys-color-baseline--overlay-text-primary: #ffffff;
+    --yt-sys-color-baseline--overlay-outline: rgba(255,255,255,0.7);
+    --yt-deprecated-general-background-a: #0f0f0f;
+    --yt-deprecated-general-background-b: #0f0f0f;
+    --yt-deprecated-general-background-c: #181818;
+    --yt-spec-base-background: #0f0f0f;
+    --yt-spec-raised-background: #212121;
+    --yt-spec-text-primary: #f1f1f1;
+    --yt-spec-text-secondary: #aaaaaa;
+    --yt-spec-text-disabled: #717171;
+    --yt-spec-outline: rgba(255,255,255,0.2);
+    --yt-spec-call-to-action: #3ea6ff;
+    --ytd-searchbox-background: #121212;
+    --ytd-searchbox-text-color: #f1f1f1;
+    --ytd-searchbox-border-color: rgba(255,255,255,0.2);
+    --ytd-rich-grid-item-margin: 16px;
+    --ytd-rich-grid-row-margin: 8px;
+    --ytd-rich-grid-gutter-margin: 16px;
+    --yt-frosted-glass-backdrop-filter-override: none;
+    --font: Roboto, "Segoe UI", Arial, sans-serif;
+  }
+  html:not([dark]) {
+    --yt-sys-color-baseline--base-background: #ffffff;
+    --yt-sys-color-baseline--raised-background: #ffffff;
+    --yt-sys-color-baseline--menu-background: #ffffff;
+    --yt-sys-color-baseline--inverted-background: #000000;
+    --yt-sys-color-baseline--text-primary: #0f0f0f;
+    --yt-sys-color-baseline--text-secondary: #606060;
+    --yt-sys-color-baseline--text-disabled: #909090;
+    --yt-sys-color-baseline--outline: rgba(0,0,0,0.2);
+    --yt-sys-color-baseline--tonal-rim: rgba(0,0,0,0.08);
+    --yt-sys-color-baseline--call-to-action: #065fd4;
+    --yt-sys-color-baseline--call-to-action-inverse: #ffffff;
+    --yt-sys-color-baseline--additive-background: rgba(0,0,0,0.05);
+    --yt-deprecated-general-background-a: #ffffff;
+    --yt-deprecated-general-background-b: #f9f9f9;
+    --yt-deprecated-general-background-c: #f2f2f2;
+    --yt-spec-base-background: #ffffff;
+    --yt-spec-raised-background: #ffffff;
+    --yt-spec-text-primary: #0f0f0f;
+    --yt-spec-text-secondary: #606060;
+    --yt-spec-text-disabled: #909090;
+    --yt-spec-outline: rgba(0,0,0,0.2);
+    --yt-spec-call-to-action: #065fd4;
+    --ytd-searchbox-background: #ffffff;
+    --ytd-searchbox-text-color: #0f0f0f;
+    --ytd-searchbox-border-color: rgba(0,0,0,0.2);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { font-family: var(--font); }
+
+  /* ---------- mock YouTube, using real tag names ----------
+     ytd-app / ytd-rich-grid-renderer / ytd-rich-item-renderer /
+     ytd-reel-shelf-renderer / ytd-guide-collapsible-entry-renderer
+     are the actual selectors the userscript's CSS targets, so its
+     rules apply here unmodified. */
+  ytd-app {
+    display: block;
+    min-height: 100vh;
+    background: var(--yt-sys-color-baseline--base-background);
+    color: var(--yt-sys-color-baseline--text-primary);
+    font-size: 14px;
+    padding-bottom: 420px;
+  }
+  .mock-guide {
+    width: 236px;
+    float: left;
+    padding: 12px 12px 40px;
+    border-right: 1px solid var(--yt-sys-color-baseline--tonal-rim);
+    box-sizing: border-box;
+  }
+  .mock-logo {
+    display: flex; align-items: center; gap: 8px;
+    padding: 6px 12px 14px; font-size: 17px; font-weight: 500;
+  }
+  .mock-logo .tube {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 26px; height: 26px; border-radius: 7px;
+    background: #f00; color: #fff; font-weight: 700; font-size: 13px;
+  }
+  .mock-entry {
+    display: flex; align-items: center; gap: 16px;
+    padding: 9px 12px; border-radius: 10px;
+    color: var(--yt-sys-color-baseline--text-primary);
+    font-size: 13.5px;
+  }
+  .mock-entry .ic { width: 20px; text-align: center; font-size: 16px; opacity: .9; }
+  .mock-entry.active {
+    background: var(--yt-sys-color-baseline--raised-background);
+    font-weight: 500;
+  }
+
+  /* the subsCard feature targets these two elements */
+  ytd-guide-collapsible-entry-renderer { display: block; margin: 4px 0 8px; }
+  ytd-guide-entry-renderer {
+    display: flex; align-items: center; gap: 16px;
+    padding: 9px 12px; border-radius: 10px;
+    color: var(--yt-sys-color-baseline--text-primary);
+    font-size: 13.5px; cursor: pointer;
+  }
+  ytd-guide-entry-renderer .ic { width: 20px; text-align: center; font-size: 16px; }
+  ytd-guide-collapsible-entry-renderer div#expanded { padding: 2px 0 4px; }
+  .sub-row {
+    display: flex; align-items: center; gap: 16px;
+    padding: 7px 12px; border-radius: 10px; font-size: 12.5px;
+  }
+  .avatar {
+    width: 24px; height: 24px; border-radius: 50%; flex: none;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11px; font-weight: 500;
+    background: color-mix(in srgb, var(--yt-sys-color-baseline--call-to-action) 40%, var(--yt-sys-color-baseline--raised-background));
+    color: var(--yt-sys-color-baseline--text-primary);
+  }
+
+  /* the feedScroll feature targets ytd-rich-item-renderer */
+  ytd-rich-grid-renderer {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: var(--ytd-rich-grid-row-margin) var(--ytd-rich-grid-gutter-margin);
+    padding: 16px;
+    margin-left: 236px;
+  }
+  ytd-rich-item-renderer { display: block; }
+  .card { margin: var(--ytd-rich-grid-item-margin) 0; }
+  .thumb {
+    aspect-ratio: 16 / 9; border-radius: 12px;
+    background: linear-gradient(135deg, #3a3a3a, #1c1c1c);
+    border: 1px solid var(--yt-sys-color-baseline--outline);
+  }
+  .card h4 {
+    font-size: 13.5px; font-weight: 500; margin: 8px 0 3px;
+    line-height: 1.35;
+  }
+  .card p { font-size: 12px; color: var(--yt-sys-color-baseline--text-secondary); }
+  .card p a { color: var(--yt-sys-color-baseline--text-secondary); text-decoration: none; }
+
+  /* the hideShortsShelf feature targets this whole element */
+  ytd-reel-shelf-renderer {
+    display: block;
+    grid-column: 1 / -1;
+    margin: 4px 16px 0;
+    padding: 12px;
+    border-radius: 12px;
+    background: var(--yt-sys-color-baseline--raised-background);
+    border: 1px solid var(--yt-sys-color-baseline--tonal-rim);
+    font-size: 12.5px;
+    color: var(--yt-sys-color-baseline--text-secondary);
+  }
+  ytd-rich-item-renderer[rich-grid-hover-highlight] .thumb {
+    border-color: var(--yt-sys-color-baseline--outline);
+  }
+
+  /* ---------- preview-only chrome ----------
+     Deliberately NOT part of the userscript. Lives in its own corner
+     so it is never mistaken for the real UI. */
+  .preview {
+    position: fixed; left: 16px; bottom: 16px; z-index: 2147483646;
+    width: 300px; max-height: 78vh; overflow-y: auto;
+    background: var(--yt-sys-color-baseline--menu-background);
+    border: 1px solid var(--yt-sys-color-baseline--outline);
+    border-radius: 14px; padding: 14px 15px;
+    font-size: 12px; color: var(--yt-sys-color-baseline--text-primary);
+    box-shadow: 0 10px 30px rgba(0,0,0,0.35);
+  }
+  .preview h2 {
+    font-size: 13px; margin-bottom: 2px;
+    display: flex; align-items: center; gap: 7px;
+  }
+  .preview .tagline {
+    font-size: 10.5px; color: var(--yt-sys-color-baseline--text-secondary);
+    margin-bottom: 11px; line-height: 1.4;
+  }
+  .preview fieldset {
+    border: 0; border-top: 1px solid var(--yt-sys-color-baseline--tonal-rim);
+    margin: 11px 0 0; padding: 10px 0 0;
+  }
+  .preview legend {
+    font-size: 9.5px; letter-spacing: .09em; text-transform: uppercase;
+    font-weight: 700; color: var(--yt-sys-color-baseline--text-secondary);
+    padding: 0; margin-bottom: 7px;
+  }
+  .preview label.chk {
+    display: flex; align-items: flex-start; gap: 8px;
+    padding: 4px 0; cursor: pointer; line-height: 1.35;
+  }
+  .preview label.chk input { margin: 1px 0 0; flex: none; accent-color: var(--yt-sys-color-baseline--call-to-action); }
+  .preview select, .preview .row-btns button {
+    width: 100%; margin-top: 5px; padding: 6px 8px;
+    font: inherit; font-size: 11.5px;
+    background: var(--yt-sys-color-baseline--raised-background);
+    color: var(--yt-sys-color-baseline--text-primary);
+    border: 1px solid var(--yt-sys-color-baseline--outline);
+    border-radius: 8px;
+  }
+  .row-btns { display: flex; gap: 6px; margin-top: 6px; }
+  .row-btns button { margin: 0; cursor: pointer; }
+  .note {
+    font-size: 10.5px; line-height: 1.45; margin-top: 10px;
+    padding: 8px 9px; border-radius: 9px;
+    background: color-mix(in srgb, var(--yt-sys-color-baseline--text-primary) 6%, transparent);
+    color: var(--yt-sys-color-baseline--text-secondary);
+  }
+  .note.warn { border: 1px dashed var(--yt-sys-color-baseline--outline); }
+  .route-note { display: none; margin-top: 6px; }
+  .route-note.on { display: block; }
+</style>
+</head>
+<body>
+
+<!-- ===== mock YouTube page, real tag names ===== -->
+<ytd-app>
+  <div class="mock-guide">
+    <div class="mock-logo"><span class="tube">▶</span> YouTube</div>
+    <div class="mock-entry active"><span class="ic">⌂</span> Inicio</div>
+    <div class="mock-entry"><span class="ic">▷</span> Shorts</div>
+
+    <ytd-guide-collapsible-entry-renderer>
+      <ytd-guide-entry-renderer id="expander-item"><span class="ic">≡</span> Suscripciones</ytd-guide-entry-renderer>
+      <div id="expanded">
+        <div class="sub-row"><span class="avatar">AV</span> Ahoy Videos</div>
+        <div class="sub-row"><span class="avatar">LS</span> Lux Scientist</div>
+        <div class="sub-row"><span class="avatar">CT</span> Code &amp; Tips</div>
+        <div class="sub-row"><span class="avatar">NM</span> Nocturne Music</div>
+      </div>
+    </ytd-guide-collapsible-entry-renderer>
+
+    <div class="mock-entry"><span class="ic">▤</span> Historial</div>
+    <div class="mock-entry"><span class="ic">♥</span> Videos que me gustan</div>
+  </div>
+
+  <ytd-rich-grid-renderer>
+    <ytd-reel-shelf-renderer>Estante de Shorts — se oculta con «Ocultar estantes de Shorts»</ytd-reel-shelf-renderer>
+    <ytd-rich-item-renderer><div class="card"><div class="thumb"></div><h4><a href="#">Cómo tu navegador decide el modo oscuro</a></h4><p><a href="#">Ahoy Videos</a> · 1.2M de vistas · hace 2 días</p></div></ytd-rich-item-renderer>
+    <ytd-rich-item-renderer><div class="card"><div class="thumb"></div><h4><a href="#">Midiendo el coste real de las animaciones</a></h4><p><a href="#">Lux Scientist</a> · 860K de vistas · hace 1 semana</p></div></ytd-rich-item-renderer>
+    <ytd-rich-item-renderer><div class="card"><div class="thumb"></div><h4><a href="#">prefers-reduced-motion en el navegador</a></h4><p><a href="#">Code &amp; Tips</a> · 240K de vistas · hace 3 semanas</p></div></ytd-rich-item-renderer>
+    <ytd-rich-item-renderer><div class="card"><div class="thumb"></div><h4><a href="#">Contraste alto sin filtros sobre el video</a></h4><p><a href="#">Nocturne Music</a> · 74K de vistas · hace 1 mes</p></div></ytd-rich-item-renderer>
+    <ytd-rich-item-renderer><div class="card"><div class="thumb"></div><h4><a href="#">Cuadrículas filthy y content-visibility</a></h4><p><a href="#">Ahoy Videos</a> · 512K de vistas · hace 2 meses</p></div></ytd-rich-item-renderer>
+    <ytd-rich-item-renderer><div class="card"><div class="thumb"></div><h4><a href="#">Densidad, espaciado y scroll</a></h4><p><a href="#">Lux Scientist</a> · 133K de vistas · hace 3 meses</p></div></ytd-rich-item-renderer>
+  </ytd-rich-grid-renderer>
+</ytd-app>
+
+<!-- ===== preview-only chrome ===== -->
+<aside class="preview">
+  <h2>Vista previa · 1.2.0</h2>
+  <div class="tagline">
+    Controles de la vista previa. <b>No forman parte del script.</b> El panel y
+    el botón de la esquina inferior derecha son el userscript real, cargado
+    tal cual desde <code>youtube-custom-light.user.js</code>.
+  </div>
+
+  <fieldset>
+    <legend>Página</legend>
+    <select id="route">
+      <option value="/feed/subscriptions">Suscripciones</option>
+      <option value="/">Inicio</option>
+      <option value="/results">Resultados</option>
+      <option value="/feed/history">Historial</option>
+      <option value="/watch">Reproductor</option>
+    </select>
+    <div class="note route-note" id="routeNote">
+      La simulación de ruta necesita que la página se sirva por HTTP
+      (<code>python3 -m http.server</code>). Con <code>file://</code> el
+      navegador bloquea <code>history.replaceState</code> y la página se
+      clasifica como «otra».
+    </div>
+  </fieldset>
+
+  <fieldset>
+    <legend>Preferencias del sistema (simuladas)</legend>
+    <label class="chk"><input type="checkbox" data-mq="(prefers-contrast: more)"><span>Más contraste (<code>prefers-contrast</code>)</span></label>
+    <label class="chk"><input type="checkbox" data-mq="(prefers-reduced-motion: reduce)"><span>Reducir movimiento (<code>prefers-reduced-motion</code>)</span></label>
+    <label class="chk"><input type="checkbox" data-mq="(prefers-reduced-transparency: reduce)"><span>Reducir transparencia (<code>prefers-reduced-transparency</code>)</span></label>
+    <label class="chk"><input type="checkbox" data-mq="(forced-colors: active)"><span>Colores forzados (<code>forced-colors</code>)</span></label>
+    <label class="chk"><input type="checkbox" id="narrow"><span>Ventana estrecha (&lt; 760px)</span></label>
+  </fieldset>
+
+  <fieldset>
+    <legend>Entorno</legend>
+    <div class="row-btns">
+      <button type="button" id="themeBtn">Oscuro</button>
+      <button type="button" id="reapplyBtn">Recalcular perfil</button>
+    </div>
+    <div class="note">
+      «Recalcular perfil» equivale a que YouTube navegue: dispara
+      <code>yt-navigate-finish</code>, el mismo evento que usa el script en el
+      sitio real.
+    </div>
+  </fieldset>
+</aside>
+
+<!-- The real userscript. It mounts its own FAB and panel, resolves the
+     adaptive profile against the shimmed matchMedia above, and persists
+     nothing because GM_getValue is absent in a plain page. -->
+<script src="youtube-custom-light.user.js"></script>
+
+<script>
+(function () {
+  'use strict';
+  var root = document.documentElement;
+  var mq = window.__yclPreview;
+
+  var routeSel = document.getElementById('route');
+  var routeNote = document.getElementById('routeNote');
+  var themeBtn = document.getElementById('themeBtn');
+  var narrow = document.getElementById('narrow');
+
+  function navigate(path) {
+    // The script listens for yt-navigate-finish and re-reads
+    // window.location.pathname, so changing the URL *is* the navigation.
+    try {
+      history.replaceState({}, '', path);
+    } catch (error) {
+      routeNote.classList.add('on');
+      return;
+    }
+    routeNote.classList.remove('on');
+    window.dispatchEvent(new Event('yt-navigate-finish'));
+  }
+
+  routeSel.addEventListener('change', function () { navigate(routeSel.value); });
+
+  themeBtn.addEventListener('click', function () {
+    if (root.hasAttribute('dark')) {
+      root.removeAttribute('dark');
+      themeBtn.textContent = 'Claro';
+    } else {
+      root.setAttribute('dark', '');
+      themeBtn.textContent = 'Oscuro';
+    }
+    // The script's MutationObserver already watches the `dark` attribute
+    // on <html>, so no manual nudge is needed here.
+  });
+
+  narrow.addEventListener('change', function () {
+    mq.set('(max-width: 760px)', narrow.checked);
+  });
+
+  Array.prototype.forEach.call(
+    document.querySelectorAll('[data-mq]'),
+    function (box) {
+      box.addEventListener('change', function () { mq.set(box.dataset.mq, box.checked); });
+    }
+  );
+
+  document.getElementById('reapplyBtn').addEventListener('click', function () {
+    window.dispatchEvent(new Event('yt-navigate-finish'));
+  });
+
+  // file:// cannot be rewritten; fall back to the page's real classification
+  // and say so instead of silently pretending.
+  try {
+    history.replaceState({}, '', routeSel.value);
+    window.dispatchEvent(new Event('yt-navigate-finish'));
+  } catch (error) {
+    routeNote.classList.add('on');
+  }
+})();
+</script>
+</body>
+</html>
