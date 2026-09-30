@@ -1,15 +1,17 @@
-# Capturas de YouTube usadas para verificacion (DESIGN.md seccion 10).
-# Son ~65 MB de HTML renderizado: no van al repo, se regeneran aparte.
+# Optional local captures; not required to build, test or install the userscript.
 captures/
 snapshots/
 
-# Archivo de exportacion del workspace y copias de sitio completas.
+# Local exports and historical backup.
 *.zip
-
-# Copia de seguridad de v1.1.4, anterior a la migracion a v1.2.0.
 .backup-v1.1.4/
 
-# Herramientas locales.
+# Tooling and generated test output.
 .opencode/
 .mutation-tmp/
 node_modules/
+coverage/
+
+# Operating-system files.
+.DS_Store
+Thumbs.db

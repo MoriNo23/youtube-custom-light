@@ -1,0 +1,969 @@
+diff --git a/.editorconfig b/.editorconfig
+new file mode 100644
+index 0000000000000000000000000000000000000000..deefef35129f78bac67881144a4b50c51a8d7b21
+--- /dev/null
++++ b/.editorconfig
+@@ -0,0 +1,14 @@
++root = true
++
++[*]
++charset = utf-8
++end_of_line = lf
++insert_final_newline = true
++
++[*.js]
++indent_style = space
++indent_size = 4
++
++[*.{json,yml,yaml,md,html}]
++indent_style = space
++indent_size = 2
+diff --git a/.gitignore b/.gitignore
+index f31a2c7c0ea63867675bb1dafb19f3860f94d83f..659e64cf1428c9b630a777d0c2a1dff268ebd4cd 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -1,15 +1,17 @@
+-# Capturas de YouTube usadas para verificacion (DESIGN.md seccion 10).
+-# Son ~65 MB de HTML renderizado: no van al repo, se regeneran aparte.
++# Optional local captures; not required to build, test or install the userscript.
+ captures/
+ snapshots/
+ 
+-# Archivo de exportacion del workspace y copias de sitio completas.
++# Local exports and historical backup.
+ *.zip
+-
+-# Copia de seguridad de v1.1.4, anterior a la migracion a v1.2.0.
+ .backup-v1.1.4/
+ 
+-# Herramientas locales.
++# Tooling and generated test output.
+ .opencode/
+ .mutation-tmp/
+ node_modules/
++coverage/
++
++# Operating-system files.
++.DS_Store
++Thumbs.db
+diff --git a/DESIGN.md b/DESIGN.md
+deleted file mode 100644
+index cbfc40096b245d5cb2638ac1d15691a50f22af0c..0000000000000000000000000000000000000000
+--- a/DESIGN.md
++++ /dev/null
+@@ -1,225 +0,0 @@
+-# YouTube Custom Light — Design Document
+-
+-Status: v1.2.0 — DOM and tokens verified against YouTube web, 2026-08-09
+-(Chrome 151, home/watch/shorts captures in `captures/`). The adaptive
+-appearance layer (v1.2.0) was added afterwards against the same captures plus
+-the six page snapshots in `snapshots/`.
+-
+-## 1. Purpose
+-
+-Site-wide YouTube tuning for low-end desktops/laptops: less CPU/GPU/RAM while
+-watching, plus adaptive appearance driven by the page and the OS accessibility
+-settings. Unlike the Shorts script (zero UI), this one ships a floating panel
+-because several features are a taste call (hide Shorts shelf, disable
+-animations, accent color).
+-
+-Non-goals:
+-
+-- No resolution forcing, no ad/anti-sponsor logic, no network tampering.
+-- No per-video settings; the panel is a single global settings surface.
+-- No visual re-theme of YouTube itself; we surface colors only through
+-  YouTube's own tokens so dark/light both work.
+-- No filters on video pixels, at any contrast or effects level.
+-
+-## 2. Feature list
+-
+-### Appearance modes (adaptive, v1.2.0)
+-
+-Resolved by `resolveAdaptiveProfile(state, context)`. Manual choices always win;
+-`smartMode === false` falls back to the `fallback` column.
+-
+-| key | automatic value | fallback | effect |
+-|---|---|---|---|
+-| `contrastMode` | `system` if forced-colors, else `high` if `prefers-contrast`, else `standard` | `standard` | `high`/`maximum` add `ycl-contrast-high`/`ycl-contrast-max` on `<html>` |
+-| `effectsMode` | `none` if forced-colors, reduced-transparency or raised contrast, else `reduced` if `prefers-reduced-motion`, else `standard` | `standard` | `ycl-effects-reduced`/`ycl-effects-none` on `<html>` |
+-| `densityMode` | `compact` on wide viewports (`>760px`) for `home`/`subscriptions`/`search`/`feed`, else `comfortable` | `comfortable` | `ycl-density-compact` on `<html>` |
+-
+-Raised contrast is a hard dependency of reduced effects: contrast at `high` or
+-`maximum` forces effects to `none` unless the user chose effects manually. This
+-is deliberate — bold text on a blurred translucent surface is not legible.
+-
+-### Toggles (opt-in features)
+-
+-| feat | default | mechanism |
+-|---|---|---|
+-| `pauseHidden` | ON | On `visibilitychange` to hidden, pause videos still playing; a capture-phase `play` listener also catches a player that starts after the tab was already hidden. YouTube keeps playing in background tabs by default — the largest battery drain on low-end hardware. |
+-| `subsCard` | ON | Guide "Subscriptions" button (`ytd-guide-entry-renderer#expander-item`, plus the `a#endpoint[href*="/feed/subscriptions"]` variant) gets a solid raised surface with a rim and 8px radius; `div#expanded` gets a 45% translucent raised surface. |
+-| `hideShortsShelf` | OFF | `ytd-reel-shelf-renderer { display:none !important }`. Deliberately global — hides every Shorts shelf wherever YouTube renders it. |
+-| `feedScroll` | OFF | `content-visibility: auto` + `contain-intrinsic-size` on `ytd-rich-item-renderer`. Experimental; opt-in until field-tested. |
+-| `motionCut` | OFF | Reduced-motion recipe: animation/transition durations 0.01ms, scroll-behavior auto. Last resort, and a whole-UI override. |
+-
+-### Always on
+-
+-- `REDUCED_MOTION_CSS` — a `prefers-reduced-motion: reduce` block. Independent
+-  of the `motionCut` toggle: honouring the OS is not a user choice, `motionCut`
+-  is.
+-
+-### Removed in 1.2.0
+-
+-The v1.1.x always-on bloat sweep (`.ytp-gated-actions-overlay`,
+-`#video-filtering-overlay-container`, re-run on a 10s `setInterval`) is gone.
+-Re-querying the DOM on a timer is exactly the cost this script exists to avoid.
+-A test now asserts the source contains no `setInterval` at all, and a mutation
+-test injects one to prove the assertion bites.
+-
+-## 3. DOM inventory (verified live)
+-
+-| Target | Selector | Notes |
+-|---|---|---|
+-| Subscriptions collapsible (guide) | `ytd-guide-collapsible-entry-renderer` | Contains `ytd-guide-entry-renderer#expander-item` (the button) + `div#expanded` (channel list). This replaced the old hover flyout (`ytd-guide-flyout-renderer` is GONE from the 2026 bundle). |
+-| Shorts shelf | `ytd-reel-shelf-renderer` | Present on Home (`ytd-rich-grid-renderer` islands) and search results. |
+-| Feed cards | `ytd-rich-item-renderer` | Grid wrapper around every video card on Home/search. |
+-| Feed grid metrics | `ytd-rich-grid-renderer` | Density is driven by the `--ytd-rich-grid-{item,row,gutter}-margin` custom properties, not by padding overrides. |
+-| Search box | `--ytd-searchbox-background`, `--ytd-searchbox-text-color`, `--ytd-searchbox-border-color` | Repainted by the high/maximum-contrast palettes. |
+-| Mini-guide entry | `ytd-mini-guide-entry-renderer` | Collapsed sidebar; has no expanded list, so the card feature intentionally does not touch it. |
+-| Competing FAB | `#ysu-fab` | YouTube's own floating action button. Our root docks beside it rather than overlapping. |
+-| Theme marker | `html[dark]` | The only reliable dark-mode signal. `darker-dark-theme` is present on light pages too; a test asserts the skin CSS never uses it. |
+-
+-Adaptive classes are written to `document.documentElement`, never to a YouTube
+-node, so a YouTube re-render cannot drop them.
+-
+-## 4. Theming
+-
+-All rule colors are YouTube token variables, with two-level fallbacks so the
+-script still renders correctly if YouTube renames a token:
+-
+-- raised surface: `var(--yt-sys-color-baseline--raised-background, var(--ycl-raised-fallback, #f9f9f9))`
+-- rim:           `var(--yt-sys-color-baseline--tonal-rim, var(--ycl-rim-fallback, rgba(0,0,0,0.12)))`
+-- panel bg:      `var(--yt-sys-color-baseline--menu-background, var(--ycl-raised-fallback, #ffffff))`
+-- text:          `var(--yt-sys-color-baseline--text-primary, #111111)`
+-- muted:         `var(--yt-sys-color-baseline--text-secondary, #606060)`
+-- outline:       `var(--yt-sys-color-baseline--outline, var(--ycl-rim-fallback))`
+-- accent:        `var(--yt-sys-color-baseline--call-to-action, #065fd4)`
+-
+-`--ycl-raised-fallback` / `--ycl-rim-fallback` are set once per theme in
+-`PANEL_CSS` (`html[dark]` → `#212121` / `rgba(255,255,255,0.18)`), so the
+-fallback chain does not repeat a literal at every call site.
+-
+-The high/maximum contrast palettes repaint the `--yt-sys-color-baseline--*`,
+-`--yt-deprecated-general-background-*`, `--yt-spec-*` and `--ytd-searchbox-*`
+-groups with `!important`, split light/dark via `:not([dark])` / `[dark]`. They
+-also underline non-button links, because colour alone is not a sufficient
+-affordance at maximum contrast.
+-
+-Effects are controlled by overriding `--yt-frosted-glass-backdrop-filter-override`
+-and zeroing `box-shadow` / `text-shadow` / `backdrop-filter` under
+-`ycl-effects-reduced` / `ycl-effects-none`.
+-
+-Skins use `color-mix()` against the captured dark/light base values
+-(`#212121`/`#0f0f0f` dark, `#ffffff`/`#f9f9f9` light) at 5–30% accent. The mix
+-percentages are deliberately untested — see the coverage gaps in
+-`mutation-test.js`.
+-
+-## 5. Panel UX spec
+-
+-- Trigger: 48×38px button, bottom-right, `z-index: 2147483647`, radius
+-  `12px 0 0 0` (bottom-left rounded, hugs the corner). Icon: sliders. It is not
+-  a circle.
+-- Dock: when `#ysu-fab` exists, the root shifts right by
+-  `fabOffsetRight(width) = width + 2` and sets `--ycl-dock-offset`, which the
+-  panel width subtracts from `100vw` so the panel never runs under YouTube's
+-  button.
+-- Panel: `min(390px, 100vw - 20px - dock)`, `max-height: min(760px, 100dvh -
+-  58px)`, radius `16px 16px 0 16px`, scrolling with `overscroll-behavior:
+-  contain`. Below 420px viewport width the panel goes full-bleed-ish and the
+-  setting grid narrows.
+-- Sections, in order: header (mark, title, close), **Modo inteligente** card,
+-  **Apariencia** (three `<select>`s), **Navegación y comodidad** (five
+-  switches), **Color de acento** (five swatches), **Perfil aplicado** status
+-  card, then reset + shortcut footnote.
+-- The status card is `role="status" aria-live="polite"` and shows
+-  `profileSummary(profile)` — e.g. `Inteligente · Suscripciones · contraste
+-  normal · efectos de YouTube · densidad compacta`. This is the only place the
+-  user can see what auto-detection actually decided.
+-- Keyboard: `Alt+Shift+Y` toggles (focus moves into the panel on open, back to
+-  the button on close), `Escape` closes and restores focus. Shortcuts are
+-  ignored while focus is in a text field and while Ctrl/Meta is held.
+-- Dismissal: a document-level `pointerdown` using `composedPath()` closes the
+-  panel on an outside click.
+-- Persistence: `GM_setValue`/`GM_getValue` under `ycl-features-v1`, JSON.
+-  Toggling re-renders only the feature/skin CSS node (`#ycl-features`); the
+-  panel CSS, adaptive CSS and reduced-motion block are injected once into
+-  `#ycl-panel-css` and never rewritten.
+-- `init()` is guarded by `document.getElementById('ycl-root') || !document.body`
+-  so a re-injection cannot double-mount.
+-- No fetch, no sync, no login. Everything lives in the user's storage.
+-
+-## 6. Code conventions (anti-slop)
+-
+-Same as YTShorts_Ultra/DESIGN.md §6: pure core exported to Node, thin DOM
+-layer, no emoji/decoration in code, token vars, no GM calls inside the pure
+-core. The panel's user-facing strings are **Spanish**; code identifiers and
+-these docs are English.
+-
+-### Trusted Types (pitfall, verified 2026-08-09)
+-
+-YouTube ships `require-trusted-types-for 'script'`: `innerHTML` AND
+-`createContextualFragment` throw on any element, including fresh nodes.
+-DO NOT use innerHTML anywhere in the injected UI — mount with DOM API
+-(createElement/createElementNS + textContent) only. `buildPanelMarkup()`
+-exists solely as a unit-tested string contract of labels/ids; the real panel
+-is built from the same `TOGGLES` / `SELECT_SETTINGS` / `SKINS` arrays via
+-`mountPanel()` so the two cannot diverge.
+-
+-### No polling
+-
+-The script reacts to `yt-navigate-finish`, `popstate`, a `MutationObserver` on
+-`documentElement` attributes `dark`/`color-version`, and `matchMedia` change
+-events. There is no timer anywhere. See §2 "Removed in 1.2.0".
+-
+-## 7. Testing protocol
+-
+-- `node --test youtube-custom-light.test.js` — 14 tests: `loadState`
+-  sanitization and legacy-payload tolerance, the no-`setInterval` guard,
+-  `buildFeatureCss` gating, `classifyPage` over the captured routes,
+-  `resolveAdaptiveProfile` across page/OS contexts including forced-colors,
+-  manual precedence and smart-mode-off, `buildSkinCss` dark/light split,
+-  `buildAdaptiveCss` contract (including the video-pixel exclusions), the
+-  pause predicate, `fabOffsetRight`, and the panel markup/CSS contract.
+-- `node mutation-test.js` — 45 mutations, target 0 survivors. Covers state
+-  sanitization, registry defaults, feature gating, skin resolution, the route
+-  classifier, the adaptive resolver, the appearance CSS, the panel markup/CSS
+-  contract, and the no-polling guard. Prints known coverage gaps afterwards.
+-- Smoke (live CDP, 2026-08-09, v1.1.x): `subsCard` rule applied to the live
+-  guide collapsible → bg `rgb(33,33,33)` (= raised token, dark), border
+-  `1px rgba(255,255,255,.1)`, radius 12px. Panel open/close across clicks.
+-  The v1.2.0 adaptive layer has not been smoke-tested against live YouTube yet.
+-
+-## 8. Version history
+-
+-| Version | Change |
+-|---|---|
+-| 1.0.0 | First release. Verbatim file layout as described above. |
+-| 1.1.0 | Trusted Types-proof panel (DOM API), corner button, skins. |
+-| 1.1.2 | Home icon; skins tint the real YouTube page (surface variables + `.ytp-play-progress`), no full-page overlay. |
+-| 1.1.3 | Skins dropped the overlay layer; selective accents only. |
+-| 1.1.4 | English panel labels; `GM_addStyle` grant. |
+-| 1.2.0 | Adaptive appearance profile: `smartMode` + `contrastMode`/`effectsMode`/`densityMode` resolved from page kind and OS accessibility preferences, with manual precedence. Spanish panel, `@name:es`/`@description:es`. `Perfil aplicado` status card, `Alt+Shift+Y`, FAB docking beside `#ysu-fab`. Always-on `prefers-reduced-motion`. Bloat sweep and its `setInterval` removed; `GM_addStyle` grant dropped. |
+-
+-## 9. Browser compatibility
+-
+-No external libraries, no CDN, no `@require`. Everything used is either ES6
+-(2016+) or platform CSS from 2023.
+-
+-| Feature | Minimum | Impact below minimum |
+-|---|---|---|
+-| `color-mix()` | Chrome 111 / FF 113 / Safari 16.2 (2023) | Skin surface tints dropped; FAB accent and progress accent still work (plain hex). |
+-| `:has()` | Chrome 105 / FF 121 / Safari 15.4 | Subs button highlight reduced to the `#expander-item` variant only. |
+-| `dvh` | Chrome 108 / Safari 15.4 / FF 101 | The `max-height: 100vh` declaration above it still applies, so the panel only stops resizing with mobile browser chrome. |
+-| `content-visibility` (feedScroll, opt-in) | Chrome 85 / FF 125 / Safari 18 | Option simply has no effect. |
+-| `matchMedia` `addEventListener` | Chrome 84 / Safari 14 | Falls back to the deprecated `addListener`, so the profile still re-resolves on media change. |
+-| GM storage | Tampermonkey / Violentmonkey full support | Greasemonkey 4+: settings not persisted (defaults each load). CSS injection is a plain DOM `<style>` node, so styling is unaffected either way. |
+-
+-Recommended managers: Tampermonkey or Violentmonkey on Chrome/Edge/Firefox,
+-and Tampermonkey on Safari. No polyfill library is shipped on purpose: the
+-degradation path is graceful (feature off) instead of a fragile runtime
+-shim that could break when YouTube changes its DOM.
+-
+-## 10. Reverse-engineering source
+-
+-- `captures/www.youtube.com/index.html` (home), `captures/www.youtube.com/watch.html`
+-- kevlar bundle `www.youtube.com/s/_/ytmainappweb/_/js/kytmainappweb.../*.html`
+-  — component strings (no flyout renderer in 2026).
+-- `snapshots/` — six rendered pages (home, subscriptions, search, feed,
+-  shorts, watch) used to verify `classifyPage` and the adaptive profile.
+-- Live CDP Chromium 151 verification of §3 selectors, 2026-08-09.
+diff --git a/LICENSE b/LICENSE
+new file mode 100644
+index 0000000000000000000000000000000000000000..3a7dae407fccbfd72644ba4e0168875ad9d4fee8
+--- /dev/null
++++ b/LICENSE
+@@ -0,0 +1,21 @@
++MIT License
++
++Copyright (c) 2026 MoriNo23
++
++Permission is hereby granted, free of charge, to any person obtaining a copy
++of this software and associated documentation files (the "Software"), to deal
++in the Software without restriction, including without limitation the rights
++to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
++copies of the Software, and to permit persons to whom the Software is
++furnished to do so, subject to the following conditions:
++
++The above copyright notice and this permission notice shall be included in all
++copies or substantial portions of the Software.
++
++THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
++IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
++FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
++AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
++LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
++OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
++SOFTWARE.
+diff --git a/README.md b/README.md
+index abf21e3ca9759430444d5070176a7cc4ed52a8fe..252fcc725f043ef9a305ff409f0e48c6b02faebf 100644
+--- a/README.md
++++ b/README.md
+@@ -1,103 +1,116 @@
+ # YouTube Custom Light
+ 
+-Adaptive YouTube appearance for low-end desktops and laptops. The script reads
+-the page you are on and your operating-system accessibility settings, then
+-applies contrast, effect and density choices automatically — with manual
+-overrides always available. All colors come from YouTube's own tokens, so dark
+-and light both work.
++Userscript para ajustar la apariencia y algunas opciones de navegación de
++YouTube. Incluye alto contraste, reducción de efectos visuales y un modo
++inteligente con controles manuales. El panel de ajustes está en español.
+ 
+-The settings panel is in **Spanish**; this file and `DESIGN.md` are in English.
++**Versión:** 1.2.1 · **Licencia:** MIT · **Archivo único, sin dependencias externas.**
+ 
+-## Install
++## Funciones
+ 
+-1. Tampermonkey or Violentmonkey.
+-2. Open `youtube-custom-light.user.js`, the manager offers install.
+-3. Reload any youtube.com page. The button (bottom-right) opens the panel.
++### Apariencia adaptable
+ 
+-## Adaptive profile
++El **Modo inteligente** está activado por defecto. Solo decide las opciones que
++están en **Automático**; cualquier elección manual prevalece.
+ 
+-By default the script runs in **Modo inteligente** (smart mode). It resolves
+-three appearance modes from context instead of guessing:
++| Ajuste | Modos disponibles | Comportamiento automático |
++|---|---|---|
++| Contraste | Automático, Normal, Alto, Máximo | Respeta los colores forzados del sistema; usa contraste alto si el sistema lo solicita. |
++| Efectos visuales | Automático, YouTube, Reducidos, Ninguno | Reduce efectos según las preferencias de accesibilidad y el modo de contraste. |
++| Densidad del feed | Automática, Cómoda, Compacta | Compacta las cuadrículas amplias; prefiere una presentación cómoda en pantallas estrechas y páginas de reproducción/Shorts. |
+ 
+-| Mode | Automatic value |
+-|---|---|
+-| **Contraste** | `system` under forced-colors, `high` under `prefers-contrast`, otherwise `standard` |
+-| **Efectos visuales** | `none` under forced-colors / reduced-transparency / raised contrast, `reduced` under `prefers-reduced-motion`, otherwise `standard` |
+-| **Densidad del feed** | `compact` on wide viewports for Home, Suscripciones, Resultados and Feed pages, otherwise `comfortable` |
++El perfil toma en cuenta la página actual, el ancho de ventana y las preferencias
++compatibles del sistema operativo. Un indicador en el panel muestra el resultado
++aplicado. La reducción de movimiento del sistema también se respeta aunque el
++modo inteligente esté desactivado.
+ 
+-Each mode has a manual override. A manual choice always wins over the
+-automatic value. Turning smart mode off falls back to fixed defaults (`standard`
+-contrast, `standard` effects, `comfortable` density). The panel shows the
+-resolved profile in the *Perfil aplicado* card.
++Los ajustes de contraste y efectos estilizan la interfaz, no el contenido del
++video. Las reglas generales excluyen el reproductor y los elementos `<video>`;
++no se eliminan de forma general las imágenes de miniatura ni los degradados
++funcionales de los controles del reproductor.
+ 
+-Turning smart mode off and pressing **Restaurar ajustes inteligentes** are not
+-the same thing: the reset button also clears manual overrides, the switch only
+-stops auto-detection.
++### Opciones de navegación
+ 
+-## Feature toggles
++| Opción | Predeterminado | Función |
++|---|---:|---|
++| Pausar en pestaña inactiva | Activada | Pausa los videos que se reproducen cuando la pestaña queda oculta. |
++| Destacar Suscripciones | Activada | Resalta la entrada de Suscripciones en la guía lateral. |
++| Ocultar estantes de Shorts | Desactivada | Oculta las filas de Shorts; no oculta la página de Shorts. |
++| Carga eficiente del feed | Desactivada | Aplica `content-visibility` a las tarjetas de cuadrícula. Es experimental. |
++| Reducir todas las animaciones | Desactivada | Reduce animaciones y transiciones de la interfaz como ajuste explícito. |
+ 
+-Under *Navegación y comodidad*. Defaults are conservative — the two ON features
+-are the two with measured wins, everything visual is opt-in.
++También se pueden elegir colores de acento: Original, Verde, Océano, Atardecer
++y Violeta.
+ 
+-- **Pausar en pestaña inactiva** (ON) — pauses videos still playing when the
+-  tab is hidden. YouTube keeps playing in background tabs by default; this is
+-  the biggest battery drain on low-end hardware. Also covers a player that
+-  starts after the tab was already hidden.
+-- **Destacar Suscripciones** (ON) — the guide's Subscriptions button and its
+-  channel list sit on a raised surface with a rim.
+-- **Ocultar estantes de Shorts** (OFF) — removes the Shorts rail wherever
+-  YouTube renders it. Does not change the Shorts page itself.
+-- **Carga eficiente del feed** (OFF) — `content-visibility` on grid items.
+-  Experimental, opt-in.
+-- **Reducir todas las animaciones** (OFF) — site-wide animation/transition
+-  reset. Last resort. Separate from the OS preference below.
++## Instalación
+ 
+-Always on, no setting: a `prefers-reduced-motion` block that honours the
+-operating system's motion preference. It is independent of the *Reducir todas
+-las animaciones* toggle, which is an explicit whole-UI override.
++1. Instalar [Tampermonkey](https://www.tampermonkey.net/) o
++   [Violentmonkey](https://violentmonkey.github.io/).
++2. Abrir el [userscript desde la rama `main`](https://raw.githubusercontent.com/MoriNo23/youtube-custom-light/main/youtube-custom-light.user.js)
++   y aceptar la instalación que presenta el gestor.
++3. Recargar YouTube. El botón de ajustes aparece en la esquina inferior derecha.
+ 
+-High contrast and reduced effects restyle the interface only. Video pixels are
+-never filtered — the rules exclude `#movie_player` and `video` explicitly, and
+-under maximum contrast the watch-page backdrop is exempted too.
++Atajos: **Alt + Shift + Y** abre o cierra el panel; **Escape** lo cierra y
++regresa el foco al botón.
+ 
+-## Accent colors
++## Privacidad y almacenamiento
+ 
+-*Original* (default), *Verde*, *Océano*, *Atardecer*, *Violeta*. A skin tints
+-YouTube's real token variables and the play-progress bar, switching on
+-YouTube's own `[dark]` marker. It is a tint, not a re-theme.
++Las preferencias se guardan en el almacenamiento del gestor de userscripts con
++`GM_getValue`/`GM_setValue` (clave `ycl-features-v1`). No se envían preferencias,
++historial ni datos de cuenta a un servidor. El script no usa bibliotecas, CDN ni
++solicitudes de red durante su ejecución.
+ 
+-## Keyboard and storage
++## Desarrollo
+ 
+-- `Alt + Shift + Y` opens and closes the panel.
+-- `Escape` closes it and returns focus to the button.
+-- The button docks beside YouTube's own `#ysu-fab` when that is present.
++El userscript instalable se mantiene como un archivo único en la raíz del
++repositorio. No requiere compilación ni instalación de paquetes. Para ejecutar
++las comprobaciones se necesita Node.js 18 o posterior:
+ 
+-Settings persist in the script's own storage (`ycl-features-v1`) via
+-`GM_getValue`/`GM_setValue`. No cloud, no sync, no login. Preferences written
+-by 1.1.x remain readable: absent keys take their defaults.
+-
+-## Files
++```sh
++npm run check
++npm test
++npm run test:mutation
++npm run validate
++```
+ 
+-- `youtube-custom-light.user.js` — the script (single file, no build step).
+-- `showcase.html` — interactive preview of the v1.2.0 panel, the adaptive
+-  profile and the subscriptions card (dark/light). Static mock; the userscript
+-  is not required to open it.
+-- `DESIGN.md` — DOM inventory, token table, panel spec.
+-- `youtube-custom-light.test.js` — unit tests, `node --test`.
+-- `mutation-test.js` — mutation testing, `node mutation-test.js`.
+-- `captures/` — YouTube captures used for verification (see DESIGN.md §11).
+-- `snapshots/` — the six page snapshots used to verify the route classifier.
++`npm test` ejecuta las pruebas unitarias. `npm run test:mutation` comprueba que
++las mutaciones cubiertas sean detectadas; al final también enumera las áreas de
++cobertura que aún no valida.
++
++### Estructura
++
++```text
++.
++├── .editorconfig
++├── .gitignore
++├── LICENSE
++├── README.md
++├── package.json
++├── youtube-custom-light.user.js
++├── docs/
++│   ├── DESIGN.md
++│   └── showcase.html
++├── tests/
++│   └── youtube-custom-light.test.js
++├── tools/
++│   └── mutation-test.js
++└── openspec/
++```
+ 
+-## Development
++La vista previa interactiva del panel está en [`docs/showcase.html`](docs/showcase.html);
++para simular cambios de ruta, sírvela por HTTP desde la raíz del repositorio
++(por ejemplo, `python3 -m http.server`) y abre `/docs/showcase.html`. Las notas
++de arquitectura están en [`docs/DESIGN.md`](docs/DESIGN.md). Las capturas locales
++de YouTube no se incluyen ni son necesarias para instalar o probar el userscript.
+ 
+-```sh
+-node --test youtube-custom-light.test.js   # expect 14/14
+-node mutation-test.js                      # expect 45 killed, 0 survived
+-```
++## Compatibilidad y límites
+ 
+-`mutation-test.js` prints a list of known coverage gaps after the run — code
+-the suite does not yet assert. It is a to-do, not a failure.
++El script está dirigido a `youtube.com` y a gestores que implementen las API
++`GM_getValue` y `GM_setValue`. Los selectores dependen del DOM y del CSS de
++YouTube, que pueden cambiar sin aviso. Las pruebas unitarias cubren la lógica y
++los contratos del panel; no sustituyen una comprobación visual en una sesión
++activa de YouTube.
+ 
+-## License
++## Licencia
+ 
+-MIT. Author: MoriNo23.
++MIT. Consulta [`LICENSE`](LICENSE).
+diff --git a/docs/DESIGN.md b/docs/DESIGN.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..70cf44b172f288a6b32b4bdbe1965b2983c5492f
+--- /dev/null
++++ b/docs/DESIGN.md
+@@ -0,0 +1,98 @@
++# Implementation notes
++
++This document describes the current userscript. The installable source of truth
++is `../youtube-custom-light.user.js`; it is intentionally kept as one file so a
++userscript manager can install it directly. There is no build step or runtime
++dependency.
++
++## Repository layout
++
++- `../youtube-custom-light.user.js` — userscript metadata, pure logic, injected
++  CSS, panel DOM and browser event handlers.
++- `../tests/youtube-custom-light.test.js` — Node unit tests for state,
++  classification, appearance decisions and the panel contract.
++- `../tools/mutation-test.js` — mutation runner for the tested behavior.
++- `showcase.html` — optional local panel preview; loads the root userscript.
++- `../openspec/` — requirements and change history.
++
++## Runtime flow
++
++1. `loadState()` reads `ycl-features-v1` using `GM_getValue`, validates stored
++   booleans, appearance choices and accent, and supplies defaults for absent or
++   malformed values. Existing feature and skin settings remain compatible.
++2. `init()` injects panel/appearance CSS once, applies enabled feature and skin
++   CSS, mounts the settings panel using DOM APIs, and registers event-driven
++   updates. It does not poll or sweep overlays on a timer.
++3. `resolveAdaptiveProfile(state, context)` is pure. `readContext()` supplies
++   the current route, viewport breakpoint and supported accessibility media
++   preferences. Manual selections always take precedence over automatic
++   decisions.
++4. YouTube navigation, theme-attribute changes and media-query changes
++   recompute the profile. The active classes are placed on `documentElement` so
++   YouTube component re-renders do not remove them.
++
++## Adaptive appearance rules
++
++| Setting | Automatic result | Fixed value when smart mode is off |
++|---|---|---|
++| `contrastMode` | `system` for forced colors; otherwise `high` for `prefers-contrast`; otherwise `standard` | `standard` |
++| `effectsMode` | `none` for forced colors, reduced transparency or raised contrast; otherwise `reduced` for reduced motion; otherwise `standard` | `standard` |
++| `densityMode` | `compact` on wide viewports for Home, Subscriptions, Results and Feed; otherwise `comfortable` | `comfortable` |
++
++Any non-`auto` value is an explicit override. `maximum` contrast adds stronger
++outlines to selected cards and dialogs. When forced colors are active, the
++automatic contrast choice is `system`, leaving palette control to the operating
++system; custom skin CSS is omitted and reapplied when that media preference
++changes.
++
++The theme split uses YouTube's `html[dark]` attribute. The older
++`darker-dark-theme` marker alone is not used because it can also be present on
++light pages.
++
++## Effect and media boundaries
++
++The appearance CSS uses YouTube's color tokens where possible, including
++`--yt-sys-color-baseline--*` and the deprecated general-background tokens as
++fallbacks. The effect modes override
++`--yt-frosted-glass-backdrop-filter-override` and remove selected blur,
++`backdrop-filter`, `box-shadow` and `text-shadow` effects from the interface.
++
++Broad effect rules exclude `#movie_player` and video elements. A separate rule
++removes the decorative blurred watch-page backdrop; it does not filter the
++video itself. Thumbnail images and player control gradients are not globally
++removed. `densityMode` uses the grid variables observed in YouTube's rich-grid
++markup: `--ytd-rich-grid-item-margin`, `--ytd-rich-grid-row-margin` and
++`--ytd-rich-grid-gutter-margin`.
++
++## Feature toggles
++
++- `pauseHidden` — pauses currently playing videos when the tab becomes hidden;
++  a capture-phase `play` listener also handles playback that begins while
++  hidden.
++- `subsCard` — styles the guide's Subscriptions entry and its expanded list.
++- `hideShortsShelf` — hides `ytd-reel-shelf-renderer`; it does not hide the
++  Shorts page.
++- `feedScroll` — opt-in `content-visibility` for rich-grid items; marked
++  experimental.
++- `motionCut` — explicit site-wide animation/transition reduction. The
++  separate `prefers-reduced-motion` CSS rule always respects the OS preference.
++
++## Panel and persistence
++
++The panel is built with `createElement`, `createElementNS` and `textContent`;
++`innerHTML` is intentionally avoided for Trusted Types compatibility. The
++`buildPanelMarkup()` function is a testable string contract, not the runtime
++mount path. Settings are saved locally through the userscript manager; there is
++no network call, account integration or cross-device sync.
++
++The button docks beside `#ysu-fab` when present. The panel supports Escape,
++outside-click dismissal, `Alt + Shift + Y`, visible keyboard focus and live
++status text. User-facing panel strings are Spanish.
++
++## Validation and known boundaries
++
++Run `npm run validate` from the repository root. Unit tests and mutation tests
++cover the behavior listed in the scripts; the mutation runner also reports
++known coverage gaps. The YouTube snapshots used during implementation are not
++included in this repository. YouTube can change its DOM and CSS independently,
++so selectors should be rechecked when a supported page stops matching.
+diff --git a/showcase.html b/docs/showcase.html
+similarity index 99%
+rename from showcase.html
+rename to docs/showcase.html
+index e98206079c0e2c1dd5237e94e7b70d7cce3ad2db..e3260b344f30226fa2b39eb40cef76abc0145b4b 100644
+--- a/showcase.html
++++ b/docs/showcase.html
+@@ -3,7 +3,7 @@
+ <head>
+ <meta charset="utf-8">
+ <meta name="viewport" content="width=device-width, initial-scale=1">
+-<title>YouTube Custom Light 1.2.0 — vista previa</title>
++<title>YouTube Custom Light 1.2.1 — vista previa</title>
+ <script>
+ /* ------------------------------------------------------------------
+    matchMedia shim — installed BEFORE the userscript loads.
+@@ -329,7 +329,7 @@
+ 
+ <!-- ===== preview-only chrome ===== -->
+ <aside class="preview">
+-  <h2>Vista previa · 1.2.0</h2>
++  <h2>Vista previa · 1.2.1</h2>
+   <div class="tagline">
+     Controles de la vista previa. <b>No forman parte del script.</b> El panel y
+     el botón de la esquina inferior derecha son el userscript real, cargado
+@@ -379,7 +379,7 @@
+ <!-- The real userscript. It mounts its own FAB and panel, resolves the
+      adaptive profile against the shimmed matchMedia above, and persists
+      nothing because GM_getValue is absent in a plain page. -->
+-<script src="youtube-custom-light.user.js"></script>
++<script src="../youtube-custom-light.user.js"></script>
+ 
+ <script>
+ (function () {
+diff --git a/openspec/changes/archive/2026-09-29-migrate-v1-2-0-from-workspace-export/proposal.md b/openspec/changes/archive/2026-09-29-migrate-v1-2-0-from-workspace-export/proposal.md
+index 5b3c422b7d332d36fcba98229d53d8039b9a0257..6f16e0248896d0650839f42ab230872619d450c7 100644
+--- a/openspec/changes/archive/2026-09-29-migrate-v1-2-0-from-workspace-export/proposal.md
++++ b/openspec/changes/archive/2026-09-29-migrate-v1-2-0-from-workspace-export/proposal.md
+@@ -42,7 +42,18 @@ These four files still describe v1.1.4 and were deliberately left untouched:
+   README claims. The survivors are pattern drift, not a v1.2.0 regression: the
+   mutated selectors no longer appear in the v1.2.0 stylesheet.
+ 
++## Follow-up (2026-09-29)
++
++The deferred documentation and tooling work was completed after the migration:
++
++- The README now describes the current userscript and its actual installation,
++  privacy and validation behavior.
++- Design notes and the preview are under `docs/`; unit tests and the mutation
++  runner are under `tests/` and `tools/`.
++- `package.json` provides reproducible Node validation commands. The mutation
++  runner is kept aligned with the current v1.2.x source.
++
+ ## Impact
+ 
+-- Affected specs: `userscript-appearance` (new), `userscript-metadata`
+-- Affected code: `youtube-custom-light.user.js`, `youtube-custom-light.test.js`
++- Affected specs: `userscript-appearance`, `userscript-metadata`
++- Affected code: `youtube-custom-light.user.js`, `tests/`, `tools/`
+diff --git a/openspec/changes/archive/2026-09-29-migrate-v1-2-0-from-workspace-export/tasks.md b/openspec/changes/archive/2026-09-29-migrate-v1-2-0-from-workspace-export/tasks.md
+index 9944c0b9d3bd4da4252c4ff566e416649015dd27..ef8865461286d5e45257ae90e72cfeefa5c735c3 100644
+--- a/openspec/changes/archive/2026-09-29-migrate-v1-2-0-from-workspace-export/tasks.md
++++ b/openspec/changes/archive/2026-09-29-migrate-v1-2-0-from-workspace-export/tasks.md
+@@ -14,22 +14,22 @@
+ - [x] 2.4 Verify both files are byte-identical to the export by md5
+ - [x] 2.5 Normalize mtime, which the zip carried as 1980-01-02
+ 
+-## 3. Verify
++## 3. Verify the migration
+ 
+-- [x] 3.1 `node --test youtube-custom-light.test.js` → 14/14 pass
++- [x] 3.1 `node --test` → 14/14 pass at migration time
+ - [x] 3.2 Module loads under CommonJS and exports the v1.2.0 surface
+-- [x] 3.3 No other file in the repo was modified
++- [x] 3.3 No other runtime code was modified by the migration
+ 
+ ## 4. Authorship guard
+ 
+-- [x] 4.1 `@author` still resolves to exactly one value: `MoriNo23`
+-- [x] 4.2 No `@contributor`, `@copyright`, `@maintainer` or co-author line exists
+-- [x] 4.3 No author line was added to the export, the backup or the docs
++- [x] 4.1 `@author` remains exactly `MoriNo23`
++- [x] 4.2 No contributor, maintainer or co-author metadata is introduced
++- [x] 4.3 No additional authorship line is added to the userscript
+ 
+-## 5. Deferred follow-ups (not done here)
++## 5. Follow-up documentation and development structure
+ 
+-- [ ] 5.1 Update `README.md` to the v1.2.0 feature list and Spanish panel
+-- [ ] 5.2 Update `DESIGN.md` with the adaptive profile DOM/token inventory
+-- [ ] 5.3 Rebuild `showcase.html` against the v1.2.0 panel markup
+-- [ ] 5.4 Repoint `mutation-test.js` at v1.2.0 source patterns to clear the
+-      5 surviving mutants (IDs 5, 13, 14, 15, 16)
++- [x] 5.1 Rewrite the README to document the current settings, installation and validation commands
++- [x] 5.2 Move implementation notes and preview to `docs/`
++- [x] 5.3 Move unit tests to `tests/` and mutation tooling to `tools/`
++- [x] 5.4 Add package scripts for syntax checks, tests and validation
++- [x] 5.5 Verify the relocated tests and all documented commands
+diff --git a/openspec/config.yaml b/openspec/config.yaml
+index c4d34acea98d96d1c53eb71c7544336092d92f80..7f7c3502eb8f744343a95d8216bf88dbc52031de 100644
+--- a/openspec/config.yaml
++++ b/openspec/config.yaml
+@@ -1,32 +1,20 @@
+ schema: spec-driven
+ 
+-# Project context (optional)
+-# This is shown to AI when creating artifacts.
+-# Add your tech stack, conventions, style guides, domain knowledge, etc.
+-# Example:
+-#   context: |
+-#     Tech stack: TypeScript, React, Node.js
+-#     We use conventional commits
+-#     Domain: e-commerce platform
++context: |
++  Project: YouTube Custom Light, a single-file browser userscript for YouTube.
++  Runtime: Tampermonkey or Violentmonkey; plain JavaScript and injected CSS.
++  Keep youtube-custom-light.user.js installable directly from the repository root.
++  Do not introduce a build step or runtime dependency without a clear need.
++  User-facing panel text is Spanish. Preferences are stored locally through the
++  userscript manager. YouTube DOM selectors are changeable and should be tested.
++  Development checks use Node.js built-ins: npm run check, npm test, and
++  npm run test:mutation.
+ 
+-# Per-artifact rules (optional)
+-# Add custom rules for specific artifacts.
+-# Example:
+-#   rules:
+-#     proposal:
+-#       - Keep proposals under 500 words
+-#       - Always include a "Non-goals" section
+-#     tasks:
+-#       - Break tasks into chunks of max 2 hours
+-
+-# Per-operation guidance (optional)
+-# Add advisory guidance for how apply and archive work should be conducted.
+-# This is separate from artifact rules above.
+-# Example:
+-#   operations:
+-#     apply:
+-#       guidance:
+-#         - Keep test summaries concise
+-#     archive:
+-#       guidance:
+-#         - Summarize the archive outcome before finishing
++rules:
++  proposal:
++    - State user-visible goals and non-goals.
++    - Keep the installable userscript as the runtime source of truth.
++  tasks:
++    - Include verification commands for changes to runtime behavior.
++  specs:
++    - Describe observable behavior rather than implementation details where possible.
+diff --git a/openspec/specs/userscript-appearance/spec.md b/openspec/specs/userscript-appearance/spec.md
+index de4b85ff8082fba8ef7fb2c357c2d3622f0cb521..ac5cc72d669907c7a6a7f87fe7d579479bdca323 100644
+--- a/openspec/specs/userscript-appearance/spec.md
++++ b/openspec/specs/userscript-appearance/spec.md
+@@ -1,7 +1,7 @@
+ # userscript-appearance Specification
+ 
+ ## Purpose
+-TBD - created by archiving change migrate-v1-2-0-from-workspace-export. Update Purpose after archive.
++Define how YouTube Custom Light chooses and applies accessible appearance settings, while keeping user-selected overrides authoritative.
+ 
+ ## Requirements
+ 
+diff --git a/openspec/specs/userscript-metadata/spec.md b/openspec/specs/userscript-metadata/spec.md
+index 17e9b66de1fab5a6bccc182429bf5a555a4c10ef..05bab83d2ad8e571fcf6720b82407010a6ddce02 100644
+--- a/openspec/specs/userscript-metadata/spec.md
++++ b/openspec/specs/userscript-metadata/spec.md
+@@ -1,7 +1,7 @@
+ # userscript-metadata Specification
+ 
+ ## Purpose
+-TBD - created by archiving change migrate-v1-2-0-from-workspace-export. Update Purpose after archive.
++Define the userscript header requirements for installation, versioning, localization and update delivery.
+ 
+ ## Requirements
+ 
+diff --git a/package.json b/package.json
+new file mode 100644
+index 0000000000000000000000000000000000000000..be4ded388603d0a29ed210e8e4e1eb70b327a229
+--- /dev/null
++++ b/package.json
+@@ -0,0 +1,16 @@
++{
++  "name": "youtube-custom-light",
++  "version": "1.2.1",
++  "private": true,
++  "description": "Single-file YouTube userscript with adaptive appearance settings.",
++  "license": "MIT",
++  "engines": {
++    "node": ">=18"
++  },
++  "scripts": {
++    "check": "node --check youtube-custom-light.user.js && node --check tests/youtube-custom-light.test.js && node --check tools/mutation-test.js",
++    "test": "node --test tests/youtube-custom-light.test.js",
++    "test:mutation": "node tools/mutation-test.js",
++    "validate": "npm run check && npm test && npm run test:mutation"
++  }
++}
+diff --git a/youtube-custom-light.test.js b/tests/youtube-custom-light.test.js
+similarity index 95%
+rename from youtube-custom-light.test.js
+rename to tests/youtube-custom-light.test.js
+index d9fa27e2ef3bdd1c827f9e603b90b21eebe1dcca..83abb0e447c18e2041a3e1f5017e6cf1b1cd84bd 100644
+--- a/youtube-custom-light.test.js
++++ b/tests/youtube-custom-light.test.js
+@@ -1,7 +1,9 @@
+ const test = require('node:test');
+ const assert = require('node:assert/strict');
+ const fs = require('node:fs');
+-const script = require('./youtube-custom-light.user.js');
++const path = require('node:path');
++const scriptPath = process.env.YCL_SCRIPT_UNDER_TEST || path.resolve(__dirname, '..', 'youtube-custom-light.user.js');
++const script = require(scriptPath);
+ 
+ test('loadState defaults, enables the transparent smart profile, and recovers from malformed JSON', () => {
+     assert.deepEqual(script.loadState(''), {
+@@ -20,7 +22,7 @@ test('loadState defaults, enables the transparent smart profile, and recovers fr
+ });
+ 
+ test('overlay handling stays event-driven and does not add a periodic sweep', () => {
+-    const source = fs.readFileSync(require.resolve('./youtube-custom-light.user.js'), 'utf8');
++    const source = fs.readFileSync(scriptPath, 'utf8');
+     assert.doesNotMatch(source, /setInterval\s*\(/);
+ });
+ 
+@@ -161,6 +163,10 @@ test('skin CSS follows YouTube dark mode rather than the always-present darker-t
+     assert.equal(script.buildSkinCss({ skin: 'default' }), '');
+ });
+ 
++test('custom skin accent is omitted in forced-colors mode', () => {
++    assert.equal(script.buildSkinCss({ skin: 'green' }, { forcedColors: true }), '');
++});
++
+ test('appearance CSS provides high contrast and effect controls without filtering video pixels', () => {
+     const css = script.buildAdaptiveCss();
+     assert.match(css, /ycl-contrast-high/);
+diff --git a/mutation-test.js b/tools/mutation-test.js
+similarity index 91%
+rename from mutation-test.js
+rename to tools/mutation-test.js
+index 83327e6284b6abf7608990b581e0460b13d3c793..3a148976a8f4d8789a113f73f29d36d641e87ef1 100644
+--- a/mutation-test.js
++++ b/tools/mutation-test.js
+@@ -1,28 +1,23 @@
+-// Mutation testing for youtube-custom-light.user.js (v1.2.0)
+-// Run: node mutation-test.js
++// Mutation testing for the installable YouTube Custom Light userscript.
++// Run: npm run test:mutation
+ //
+-// Contract: every mutation in MUTATORS must be killed by
+-// youtube-custom-light.test.js. Target 0 survivors.
+-//
+-// Patterns are matched against the v1.2.0 source. Mutators that describe code
+-// the current suite does not assert are listed in KNOWN_GAPS below instead of
+-// being carried as survivors, so a green run stays meaningful. The gaps are a
+-// real coverage signal — see the note printed at the end of the run.
++// Contract: every mutation in MUTATORS must be killed by the unit suite.
++// Mutations outside the current assertions are listed in KNOWN_GAPS instead of
++// being counted as survivors. This keeps a green run informative, not absolute.
+ 'use strict';
+ 
+-const fs = require('fs');
+-const path = require('path');
+-const { spawnSync } = require('child_process');
++const fs = require('node:fs');
++const path = require('node:path');
++const { spawnSync } = require('node:child_process');
+ 
+-const SRC = path.join(__dirname, 'youtube-custom-light.user.js');
+-const TEST = path.join(__dirname, 'youtube-custom-light.test.js');
+-const TMP_DIR = path.join(__dirname, '.mutation-tmp');
++const ROOT = path.resolve(__dirname, '..');
++const SRC = path.join(ROOT, 'youtube-custom-light.user.js');
++const TEST = path.join(ROOT, 'tests', 'youtube-custom-light.test.js');
++const TMP_DIR = path.join(ROOT, '.mutation-tmp');
+ const TMP_SRC = path.join(TMP_DIR, 'youtube-custom-light.user.js');
+-const TMP_TEST = path.join(TMP_DIR, 'youtube-custom-light.test.js');
+ const ORIG = fs.readFileSync(SRC, 'utf8');
+ 
+ fs.mkdirSync(TMP_DIR, { recursive: true });
+-fs.copyFileSync(TEST, TMP_TEST);
+ 
+ // Literal helpers. Preferred over regex: the source contains CSS selectors and
+ // escaped route patterns that are painful and error-prone to match as regexes.
+@@ -103,6 +98,10 @@ const MUTATORS = [
+     "'html[dark] {'",
+     "'html[dark-mode] {'",
+     'buildSkinCss: dark-mode selector broken'),
++  c => firstReplaceText(c,
++    'if (context && context.forcedColors) return \'\';',
++    'if (false) return \'\';',
++    'buildSkinCss: accent remains in forced-colors mode'),
+ 
+   // ---- page classifier -------------------------------------------------
+   c => firstReplaceText(c, "if (path === '/') return 'home';", "if (path === '/home') return 'home';", 'classifyPage: home route'),
+@@ -242,7 +241,10 @@ MUTATORS.forEach((mut, i) => {
+     return;
+   }
+   fs.writeFileSync(TMP_SRC, m.code);
+-  const res = spawnSync('node', ['--test', TMP_TEST], { encoding: 'utf8' });
++  const res = spawnSync('node', ['--test', TEST], {
++    encoding: 'utf8',
++    env: Object.assign({}, process.env, { YCL_SCRIPT_UNDER_TEST: TMP_SRC })
++  });
+   if (res.status === 0) {
+     survived.push(label);
+     console.log(`LIVE  ${label}: ${m.label}`);
+diff --git a/youtube-custom-light.user.js b/youtube-custom-light.user.js
+index df6a24352629e84fc80066c7c2cef249af7d2502..c46657c2c033726bd5c47c7c5d37c1d244255225 100644
+--- a/youtube-custom-light.user.js
++++ b/youtube-custom-light.user.js
+@@ -3,7 +3,7 @@
+ // @name:en      YouTube Custom Light
+ // @name:es      YouTube Custom Light
+ // @namespace    https://github.com/MoriNo23/youtube-custom-light
+-// @version      1.2.0
++// @version      1.2.1
+ // @description  Adaptive YouTube appearance, high contrast, reduced visual effects, optional feed tools, and a settings panel.
+ // @description:en  Adaptive YouTube appearance, high contrast, reduced visual effects, optional feed tools, and a settings panel.
+ // @description:es  Apariencia adaptable, alto contraste, reducción de efectos visuales, herramientas opcionales para el feed y panel de ajustes.
+@@ -11,8 +11,8 @@
+ // @license      MIT
+ // @match        https://www.youtube.com/*
+ // @match        https://youtube.com/*
+-// @downloadURL  https://update.greasyfork.org/scripts/590557/youtube-custom-light.user.js
+-// @updateURL    https://update.greasyfork.org/scripts/590557/youtube-custom-light.user.js
++// @downloadURL  https://raw.githubusercontent.com/MoriNo23/youtube-custom-light/main/youtube-custom-light.user.js
++// @updateURL    https://raw.githubusercontent.com/MoriNo23/youtube-custom-light/main/youtube-custom-light.user.js
+ // @grant        GM_getValue
+ // @grant        GM_setValue
+ // @run-at       document-idle
+@@ -188,7 +188,8 @@
+         return skin ? skin.accent : '';
+     }
+ 
+-    function buildSkinCss(state) {
++    function buildSkinCss(state, context) {
++        if (context && context.forcedColors) return '';
+         const accent = accentFor(state.skin);
+         if (!accent) return '';
+ 
+@@ -957,7 +958,8 @@
+         injectCss(buildPanelCss() + '\n' + buildAdaptiveCss() + '\n' + REDUCED_MOTION_CSS, 'ycl-panel-css');
+         const featuresNode = injectCss('', 'ycl-features');
+         const applyFeatureCss = function () {
+-            featuresNode.textContent = buildFeatureCss(state) + '\n' + buildSkinCss(state);
++            const context = readContext();
++            featuresNode.textContent = buildFeatureCss(state) + '\n' + buildSkinCss(state, context);
+         };
+         const applyAppearance = function () {
+             const profile = resolveAdaptiveProfile(state, readContext());
+@@ -1001,6 +1003,7 @@
+             root.style.setProperty('--ycl-dock-offset', right + 'px');
+         };
+         const updateContext = function () {
++            applyFeatureCss();
+             const profile = applyAppearance();
+             updatePanelStatus(profile);
+         };

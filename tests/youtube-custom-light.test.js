@@ -1,7 +1,9 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
-const script = require('./youtube-custom-light.user.js');
+const path = require('node:path');
+const scriptPath = process.env.YCL_SCRIPT_UNDER_TEST || path.resolve(__dirname, '..', 'youtube-custom-light.user.js');
+const script = require(scriptPath);
 
 test('loadState defaults, enables the transparent smart profile, and recovers from malformed JSON', () => {
     assert.deepEqual(script.loadState(''), {
@@ -20,7 +22,7 @@ test('loadState defaults, enables the transparent smart profile, and recovers fr
 });
 
 test('overlay handling stays event-driven and does not add a periodic sweep', () => {
-    const source = fs.readFileSync(require.resolve('./youtube-custom-light.user.js'), 'utf8');
+    const source = fs.readFileSync(scriptPath, 'utf8');
     assert.doesNotMatch(source, /setInterval\s*\(/);
 });
 
@@ -159,6 +161,10 @@ test('skin CSS follows YouTube dark mode rather than the always-present darker-t
     assert.match(css, /html:not\(\[dark\]\)/);
     assert.equal(css.includes('darker-dark-theme'), false);
     assert.equal(script.buildSkinCss({ skin: 'default' }), '');
+});
+
+test('custom skin accent is omitted in forced-colors mode', () => {
+    assert.equal(script.buildSkinCss({ skin: 'green' }, { forcedColors: true }), '');
 });
 
 test('appearance CSS provides high contrast and effect controls without filtering video pixels', () => {

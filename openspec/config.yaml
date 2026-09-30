@@ -1,32 +1,20 @@
 schema: spec-driven
 
-# Project context (optional)
-# This is shown to AI when creating artifacts.
-# Add your tech stack, conventions, style guides, domain knowledge, etc.
-# Example:
-#   context: |
-#     Tech stack: TypeScript, React, Node.js
-#     We use conventional commits
-#     Domain: e-commerce platform
+context: |
+  Project: YouTube Custom Light, a single-file browser userscript for YouTube.
+  Runtime: Tampermonkey or Violentmonkey; plain JavaScript and injected CSS.
+  Keep youtube-custom-light.user.js installable directly from the repository root.
+  Do not introduce a build step or runtime dependency without a clear need.
+  User-facing panel text is Spanish. Preferences are stored locally through the
+  userscript manager. YouTube DOM selectors are changeable and should be tested.
+  Development checks use Node.js built-ins: npm run check, npm test, and
+  npm run test:mutation.
 
-# Per-artifact rules (optional)
-# Add custom rules for specific artifacts.
-# Example:
-#   rules:
-#     proposal:
-#       - Keep proposals under 500 words
-#       - Always include a "Non-goals" section
-#     tasks:
-#       - Break tasks into chunks of max 2 hours
-
-# Per-operation guidance (optional)
-# Add advisory guidance for how apply and archive work should be conducted.
-# This is separate from artifact rules above.
-# Example:
-#   operations:
-#     apply:
-#       guidance:
-#         - Keep test summaries concise
-#     archive:
-#       guidance:
-#         - Summarize the archive outcome before finishing
+rules:
+  proposal:
+    - State user-visible goals and non-goals.
+    - Keep the installable userscript as the runtime source of truth.
+  tasks:
+    - Include verification commands for changes to runtime behavior.
+  specs:
+    - Describe observable behavior rather than implementation details where possible.

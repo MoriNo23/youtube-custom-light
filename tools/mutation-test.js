@@ -1,28 +1,23 @@
-// Mutation testing for youtube-custom-light.user.js (v1.2.0)
-// Run: node mutation-test.js
+// Mutation testing for the installable YouTube Custom Light userscript.
+// Run: npm run test:mutation
 //
-// Contract: every mutation in MUTATORS must be killed by
-// youtube-custom-light.test.js. Target 0 survivors.
-//
-// Patterns are matched against the v1.2.0 source. Mutators that describe code
-// the current suite does not assert are listed in KNOWN_GAPS below instead of
-// being carried as survivors, so a green run stays meaningful. The gaps are a
-// real coverage signal — see the note printed at the end of the run.
+// Contract: every mutation in MUTATORS must be killed by the unit suite.
+// Mutations outside the current assertions are listed in KNOWN_GAPS instead of
+// being counted as survivors. This keeps a green run informative, not absolute.
 'use strict';
 
-const fs = require('fs');
-const path = require('path');
-const { spawnSync } = require('child_process');
+const fs = require('node:fs');
+const path = require('node:path');
+const { spawnSync } = require('node:child_process');
 
-const SRC = path.join(__dirname, 'youtube-custom-light.user.js');
-const TEST = path.join(__dirname, 'youtube-custom-light.test.js');
-const TMP_DIR = path.join(__dirname, '.mutation-tmp');
+const ROOT = path.resolve(__dirname, '..');
+const SRC = path.join(ROOT, 'youtube-custom-light.user.js');
+const TEST = path.join(ROOT, 'tests', 'youtube-custom-light.test.js');
+const TMP_DIR = path.join(ROOT, '.mutation-tmp');
 const TMP_SRC = path.join(TMP_DIR, 'youtube-custom-light.user.js');
-const TMP_TEST = path.join(TMP_DIR, 'youtube-custom-light.test.js');
 const ORIG = fs.readFileSync(SRC, 'utf8');
 
 fs.mkdirSync(TMP_DIR, { recursive: true });
-fs.copyFileSync(TEST, TMP_TEST);
 
 // Literal helpers. Preferred over regex: the source contains CSS selectors and
 // escaped route patterns that are painful and error-prone to match as regexes.
@@ -103,6 +98,10 @@ const MUTATORS = [
     "'html[dark] {'",
     "'html[dark-mode] {'",
     'buildSkinCss: dark-mode selector broken'),
+  c => firstReplaceText(c,
+    'if (context && context.forcedColors) return \'\';',
+    'if (false) return \'\';',
+    'buildSkinCss: accent remains in forced-colors mode'),
 
   // ---- page classifier -------------------------------------------------
   c => firstReplaceText(c, "if (path === '/') return 'home';", "if (path === '/home') return 'home';", 'classifyPage: home route'),
@@ -242,7 +241,10 @@ MUTATORS.forEach((mut, i) => {
     return;
   }
   fs.writeFileSync(TMP_SRC, m.code);
-  const res = spawnSync('node', ['--test', TMP_TEST], { encoding: 'utf8' });
+  const res = spawnSync('node', ['--test', TEST], {
+    encoding: 'utf8',
+    env: Object.assign({}, process.env, { YCL_SCRIPT_UNDER_TEST: TMP_SRC })
+  });
   if (res.status === 0) {
     survived.push(label);
     console.log(`LIVE  ${label}: ${m.label}`);

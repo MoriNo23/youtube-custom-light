@@ -1,103 +1,116 @@
 # YouTube Custom Light
 
-Adaptive YouTube appearance for low-end desktops and laptops. The script reads
-the page you are on and your operating-system accessibility settings, then
-applies contrast, effect and density choices automatically — with manual
-overrides always available. All colors come from YouTube's own tokens, so dark
-and light both work.
+Userscript para ajustar la apariencia y algunas opciones de navegación de
+YouTube. Incluye alto contraste, reducción de efectos visuales y un modo
+inteligente con controles manuales. El panel de ajustes está en español.
 
-The settings panel is in **Spanish**; this file and `DESIGN.md` are in English.
+**Versión:** 1.2.1 · **Licencia:** MIT · **Archivo único, sin dependencias externas.**
 
-## Install
+## Funciones
 
-1. Tampermonkey or Violentmonkey.
-2. Open `youtube-custom-light.user.js`, the manager offers install.
-3. Reload any youtube.com page. The button (bottom-right) opens the panel.
+### Apariencia adaptable
 
-## Adaptive profile
+El **Modo inteligente** está activado por defecto. Solo decide las opciones que
+están en **Automático**; cualquier elección manual prevalece.
 
-By default the script runs in **Modo inteligente** (smart mode). It resolves
-three appearance modes from context instead of guessing:
+| Ajuste | Modos disponibles | Comportamiento automático |
+|---|---|---|
+| Contraste | Automático, Normal, Alto, Máximo | Respeta los colores forzados del sistema; usa contraste alto si el sistema lo solicita. |
+| Efectos visuales | Automático, YouTube, Reducidos, Ninguno | Reduce efectos según las preferencias de accesibilidad y el modo de contraste. |
+| Densidad del feed | Automática, Cómoda, Compacta | Compacta las cuadrículas amplias; prefiere una presentación cómoda en pantallas estrechas y páginas de reproducción/Shorts. |
 
-| Mode | Automatic value |
-|---|---|
-| **Contraste** | `system` under forced-colors, `high` under `prefers-contrast`, otherwise `standard` |
-| **Efectos visuales** | `none` under forced-colors / reduced-transparency / raised contrast, `reduced` under `prefers-reduced-motion`, otherwise `standard` |
-| **Densidad del feed** | `compact` on wide viewports for Home, Suscripciones, Resultados and Feed pages, otherwise `comfortable` |
+El perfil toma en cuenta la página actual, el ancho de ventana y las preferencias
+compatibles del sistema operativo. Un indicador en el panel muestra el resultado
+aplicado. La reducción de movimiento del sistema también se respeta aunque el
+modo inteligente esté desactivado.
 
-Each mode has a manual override. A manual choice always wins over the
-automatic value. Turning smart mode off falls back to fixed defaults (`standard`
-contrast, `standard` effects, `comfortable` density). The panel shows the
-resolved profile in the *Perfil aplicado* card.
+Los ajustes de contraste y efectos estilizan la interfaz, no el contenido del
+video. Las reglas generales excluyen el reproductor y los elementos `<video>`;
+no se eliminan de forma general las imágenes de miniatura ni los degradados
+funcionales de los controles del reproductor.
 
-Turning smart mode off and pressing **Restaurar ajustes inteligentes** are not
-the same thing: the reset button also clears manual overrides, the switch only
-stops auto-detection.
+### Opciones de navegación
 
-## Feature toggles
+| Opción | Predeterminado | Función |
+|---|---:|---|
+| Pausar en pestaña inactiva | Activada | Pausa los videos que se reproducen cuando la pestaña queda oculta. |
+| Destacar Suscripciones | Activada | Resalta la entrada de Suscripciones en la guía lateral. |
+| Ocultar estantes de Shorts | Desactivada | Oculta las filas de Shorts; no oculta la página de Shorts. |
+| Carga eficiente del feed | Desactivada | Aplica `content-visibility` a las tarjetas de cuadrícula. Es experimental. |
+| Reducir todas las animaciones | Desactivada | Reduce animaciones y transiciones de la interfaz como ajuste explícito. |
 
-Under *Navegación y comodidad*. Defaults are conservative — the two ON features
-are the two with measured wins, everything visual is opt-in.
+También se pueden elegir colores de acento: Original, Verde, Océano, Atardecer
+y Violeta.
 
-- **Pausar en pestaña inactiva** (ON) — pauses videos still playing when the
-  tab is hidden. YouTube keeps playing in background tabs by default; this is
-  the biggest battery drain on low-end hardware. Also covers a player that
-  starts after the tab was already hidden.
-- **Destacar Suscripciones** (ON) — the guide's Subscriptions button and its
-  channel list sit on a raised surface with a rim.
-- **Ocultar estantes de Shorts** (OFF) — removes the Shorts rail wherever
-  YouTube renders it. Does not change the Shorts page itself.
-- **Carga eficiente del feed** (OFF) — `content-visibility` on grid items.
-  Experimental, opt-in.
-- **Reducir todas las animaciones** (OFF) — site-wide animation/transition
-  reset. Last resort. Separate from the OS preference below.
+## Instalación
 
-Always on, no setting: a `prefers-reduced-motion` block that honours the
-operating system's motion preference. It is independent of the *Reducir todas
-las animaciones* toggle, which is an explicit whole-UI override.
+1. Instalar [Tampermonkey](https://www.tampermonkey.net/) o
+   [Violentmonkey](https://violentmonkey.github.io/).
+2. Abrir el [userscript desde la rama `main`](https://raw.githubusercontent.com/MoriNo23/youtube-custom-light/main/youtube-custom-light.user.js)
+   y aceptar la instalación que presenta el gestor.
+3. Recargar YouTube. El botón de ajustes aparece en la esquina inferior derecha.
 
-High contrast and reduced effects restyle the interface only. Video pixels are
-never filtered — the rules exclude `#movie_player` and `video` explicitly, and
-under maximum contrast the watch-page backdrop is exempted too.
+Atajos: **Alt + Shift + Y** abre o cierra el panel; **Escape** lo cierra y
+regresa el foco al botón.
 
-## Accent colors
+## Privacidad y almacenamiento
 
-*Original* (default), *Verde*, *Océano*, *Atardecer*, *Violeta*. A skin tints
-YouTube's real token variables and the play-progress bar, switching on
-YouTube's own `[dark]` marker. It is a tint, not a re-theme.
+Las preferencias se guardan en el almacenamiento del gestor de userscripts con
+`GM_getValue`/`GM_setValue` (clave `ycl-features-v1`). No se envían preferencias,
+historial ni datos de cuenta a un servidor. El script no usa bibliotecas, CDN ni
+solicitudes de red durante su ejecución.
 
-## Keyboard and storage
+## Desarrollo
 
-- `Alt + Shift + Y` opens and closes the panel.
-- `Escape` closes it and returns focus to the button.
-- The button docks beside YouTube's own `#ysu-fab` when that is present.
-
-Settings persist in the script's own storage (`ycl-features-v1`) via
-`GM_getValue`/`GM_setValue`. No cloud, no sync, no login. Preferences written
-by 1.1.x remain readable: absent keys take their defaults.
-
-## Files
-
-- `youtube-custom-light.user.js` — the script (single file, no build step).
-- `showcase.html` — interactive preview of the v1.2.0 panel, the adaptive
-  profile and the subscriptions card (dark/light). Static mock; the userscript
-  is not required to open it.
-- `DESIGN.md` — DOM inventory, token table, panel spec.
-- `youtube-custom-light.test.js` — unit tests, `node --test`.
-- `mutation-test.js` — mutation testing, `node mutation-test.js`.
-- `captures/` — YouTube captures used for verification (see DESIGN.md §11).
-- `snapshots/` — the six page snapshots used to verify the route classifier.
-
-## Development
+El userscript instalable se mantiene como un archivo único en la raíz del
+repositorio. No requiere compilación ni instalación de paquetes. Para ejecutar
+las comprobaciones se necesita Node.js 18 o posterior:
 
 ```sh
-node --test youtube-custom-light.test.js   # expect 14/14
-node mutation-test.js                      # expect 45 killed, 0 survived
+npm run check
+npm test
+npm run test:mutation
+npm run validate
 ```
 
-`mutation-test.js` prints a list of known coverage gaps after the run — code
-the suite does not yet assert. It is a to-do, not a failure.
+`npm test` ejecuta las pruebas unitarias. `npm run test:mutation` comprueba que
+las mutaciones cubiertas sean detectadas; al final también enumera las áreas de
+cobertura que aún no valida.
 
-## License
+### Estructura
 
-MIT. Author: MoriNo23.
+```text
+.
+├── .editorconfig
+├── .gitignore
+├── LICENSE
+├── README.md
+├── package.json
+├── youtube-custom-light.user.js
+├── docs/
+│   ├── DESIGN.md
+│   └── showcase.html
+├── tests/
+│   └── youtube-custom-light.test.js
+├── tools/
+│   └── mutation-test.js
+└── openspec/
+```
+
+La vista previa interactiva del panel está en [`docs/showcase.html`](docs/showcase.html);
+para simular cambios de ruta, sírvela por HTTP desde la raíz del repositorio
+(por ejemplo, `python3 -m http.server`) y abre `/docs/showcase.html`. Las notas
+de arquitectura están en [`docs/DESIGN.md`](docs/DESIGN.md). Las capturas locales
+de YouTube no se incluyen ni son necesarias para instalar o probar el userscript.
+
+## Compatibilidad y límites
+
+El script está dirigido a `youtube.com` y a gestores que implementen las API
+`GM_getValue` y `GM_setValue`. Los selectores dependen del DOM y del CSS de
+YouTube, que pueden cambiar sin aviso. Las pruebas unitarias cubren la lógica y
+los contratos del panel; no sustituyen una comprobación visual en una sesión
+activa de YouTube.
+
+## Licencia
+
+MIT. Consulta [`LICENSE`](LICENSE).

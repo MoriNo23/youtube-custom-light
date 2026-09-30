@@ -42,7 +42,18 @@ These four files still describe v1.1.4 and were deliberately left untouched:
   README claims. The survivors are pattern drift, not a v1.2.0 regression: the
   mutated selectors no longer appear in the v1.2.0 stylesheet.
 
+## Follow-up (2026-09-29)
+
+The deferred documentation and tooling work was completed after the migration:
+
+- The README now describes the current userscript and its actual installation,
+  privacy and validation behavior.
+- Design notes and the preview are under `docs/`; unit tests and the mutation
+  runner are under `tests/` and `tools/`.
+- `package.json` provides reproducible Node validation commands. The mutation
+  runner is kept aligned with the current v1.2.x source.
+
 ## Impact
 
-- Affected specs: `userscript-appearance` (new), `userscript-metadata`
-- Affected code: `youtube-custom-light.user.js`, `youtube-custom-light.test.js`
+- Affected specs: `userscript-appearance`, `userscript-metadata`
+- Affected code: `youtube-custom-light.user.js`, `tests/`, `tools/`
