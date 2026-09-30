@@ -1,7 +1,7 @@
 # userscript-appearance Specification
 
 ## Purpose
-TBD - created by archiving change migrate-v1-2-0-from-workspace-export. Update Purpose after archive.
+Define how YouTube Custom Light chooses and applies accessible appearance settings, while keeping user-selected overrides authoritative.
 
 ## Requirements
 

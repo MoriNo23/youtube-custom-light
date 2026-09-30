@@ -1,0 +1,16 @@
+{
+  "name": "youtube-custom-light",
+  "version": "1.2.1",
+  "private": true,
+  "description": "Single-file YouTube userscript with adaptive appearance settings.",
+  "license": "MIT",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "check": "node --check youtube-custom-light.user.js && node --check tests/youtube-custom-light.test.js && node --check tools/mutation-test.js",
+    "test": "node --test tests/youtube-custom-light.test.js",
+    "test:mutation": "node tools/mutation-test.js",
+    "validate": "npm run check && npm test && npm run test:mutation"
+  }
+}

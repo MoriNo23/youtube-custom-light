@@ -1,7 +1,7 @@
 # userscript-metadata Specification
 
 ## Purpose
-TBD - created by archiving change migrate-v1-2-0-from-workspace-export. Update Purpose after archive.
+Define the userscript header requirements for installation, versioning, localization and update delivery.
 
 ## Requirements
 

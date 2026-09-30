@@ -3,7 +3,7 @@
 // @name:en      YouTube Custom Light
 // @name:es      YouTube Custom Light
 // @namespace    https://github.com/MoriNo23/youtube-custom-light
-// @version      1.2.0
+// @version      1.2.1
 // @description  Adaptive YouTube appearance, high contrast, reduced visual effects, optional feed tools, and a settings panel.
 // @description:en  Adaptive YouTube appearance, high contrast, reduced visual effects, optional feed tools, and a settings panel.
 // @description:es  Apariencia adaptable, alto contraste, reducción de efectos visuales, herramientas opcionales para el feed y panel de ajustes.
@@ -11,8 +11,8 @@
 // @license      MIT
 // @match        https://www.youtube.com/*
 // @match        https://youtube.com/*
-// @downloadURL  https://update.greasyfork.org/scripts/590557/youtube-custom-light.user.js
-// @updateURL    https://update.greasyfork.org/scripts/590557/youtube-custom-light.user.js
+// @downloadURL  https://raw.githubusercontent.com/MoriNo23/youtube-custom-light/main/youtube-custom-light.user.js
+// @updateURL    https://raw.githubusercontent.com/MoriNo23/youtube-custom-light/main/youtube-custom-light.user.js
 // @grant        GM_getValue
 // @grant        GM_setValue
 // @run-at       document-idle
@@ -188,7 +188,8 @@
         return skin ? skin.accent : '';
     }
 
-    function buildSkinCss(state) {
+    function buildSkinCss(state, context) {
+        if (context && context.forcedColors) return '';
         const accent = accentFor(state.skin);
         if (!accent) return '';
 
@@ -957,7 +958,8 @@
         injectCss(buildPanelCss() + '\n' + buildAdaptiveCss() + '\n' + REDUCED_MOTION_CSS, 'ycl-panel-css');
         const featuresNode = injectCss('', 'ycl-features');
         const applyFeatureCss = function () {
-            featuresNode.textContent = buildFeatureCss(state) + '\n' + buildSkinCss(state);
+            const context = readContext();
+            featuresNode.textContent = buildFeatureCss(state) + '\n' + buildSkinCss(state, context);
         };
         const applyAppearance = function () {
             const profile = resolveAdaptiveProfile(state, readContext());
@@ -1001,6 +1003,7 @@
             root.style.setProperty('--ycl-dock-offset', right + 'px');
         };
         const updateContext = function () {
+            applyFeatureCss();
             const profile = applyAppearance();
             updatePanelStatus(profile);
         };
