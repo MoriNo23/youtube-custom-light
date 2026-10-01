@@ -4,7 +4,7 @@ Userscript para ajustar la apariencia y algunas opciones de navegación de
 YouTube. Incluye alto contraste, reducción de efectos visuales y un modo
 inteligente con controles manuales. El panel de ajustes está en español.
 
-**Versión:** 1.2.1 · **Licencia:** MIT · **Archivo único, sin dependencias externas.**
+**Versión:** 1.2.2 · **Licencia:** MIT · **Archivo único, sin dependencias externas.**
 
 ## Funciones
 
@@ -41,6 +41,40 @@ funcionales de los controles del reproductor.
 
 También se pueden elegir colores de acento: Original, Verde, Océano, Atardecer
 y Violeta.
+
+## Uso de CPU: alcance y diagnóstico
+
+El userscript no controla la calidad, el códec ni la decodificación por hardware
+del video. No tiene temporizadores ni un barrido continuo del DOM: reacciona a
+la navegación, cambios de preferencias y acciones del usuario. La pausa de
+pestaña inactiva solo busca videos cuando la pestaña pasa a segundo plano.
+
+Sus opciones pueden aligerar partes de la interfaz, no la decodificación del
+video: **Efectos visuales → Ninguno** y **Reducir todas las animaciones** afectan
+la decoración de la página; **Carga eficiente del feed** puede ayudar en feeds
+largos, pero es experimental. No esperaría que esas opciones solucionen por sí
+solas un uso alto de CPU mientras se reproduce video.
+
+Para aislar la causa, prueba en este orden:
+
+1. Compara la misma página/video con este userscript desactivado y, si puedes,
+   con las demás extensiones desactivadas o en un perfil limpio. Si baja mucho,
+   reactiva las extensiones de una en una.
+2. Mira qué proceso consume CPU en el administrador de tareas del navegador y
+   del sistema; en Chrome se abre el administrador del navegador con **Shift +
+   Esc**.
+3. En el reproductor abre **Estadísticas para nerds** y compara códec,
+   resolución, FPS y fotogramas perdidos. Prueba temporalmente 720p frente a
+   4K/60 FPS: si el consumo cambia mucho, probablemente sea la decodificación
+   del video, no el userscript. Códecs como AV1/VP9 pueden ser más exigentes si
+   el equipo no los decodifica por hardware.
+4. Comprueba que la aceleración por hardware esté habilitada en el navegador,
+   reinícialo y revisa los controladores gráficos. En Chromium, `chrome://gpu`
+   permite comprobar el estado de las funciones gráficas; evita forzar flags
+   experimentales a ciegas.
+5. Si el consumo sigue alto con el video pausado y el userscript apagado,
+   prueba otro navegador/perfil limpio: puede ser una extensión, la página
+   (por ejemplo, chat o animaciones), el navegador o el controlador gráfico.
 
 ## Instalación
 

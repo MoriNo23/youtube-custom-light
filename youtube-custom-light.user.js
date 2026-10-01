@@ -3,7 +3,7 @@
 // @name:en      YouTube Custom Light
 // @name:es      YouTube Custom Light
 // @namespace    https://github.com/MoriNo23/youtube-custom-light
-// @version      1.2.1
+// @version      1.2.2
 // @description  Adaptive YouTube appearance, high contrast, reduced visual effects, optional feed tools, and a settings panel.
 // @description:en  Adaptive YouTube appearance, high contrast, reduced visual effects, optional feed tools, and a settings panel.
 // @description:es  Apariencia adaptable, alto contraste, reducción de efectos visuales, herramientas opcionales para el feed y panel de ajustes.
@@ -957,23 +957,23 @@
         const state = loadState(stored);
         injectCss(buildPanelCss() + '\n' + buildAdaptiveCss() + '\n' + REDUCED_MOTION_CSS, 'ycl-panel-css');
         const featuresNode = injectCss('', 'ycl-features');
-        const applyFeatureCss = function () {
-            const context = readContext();
-            featuresNode.textContent = buildFeatureCss(state) + '\n' + buildSkinCss(state, context);
+        const applyFeatureCss = function (context) {
+            const css = buildFeatureCss(state) + '\n' + buildSkinCss(state, context);
+            if (featuresNode.textContent !== css) featuresNode.textContent = css;
         };
-        const applyAppearance = function () {
-            const profile = resolveAdaptiveProfile(state, readContext());
+        const applyAppearance = function (context) {
+            const profile = resolveAdaptiveProfile(state, context);
             applyProfileClasses(profile);
             return profile;
         };
         let updatePanelStatus = function () {};
         const applyAll = function () {
-            applyFeatureCss();
-            const profile = applyAppearance();
+            const context = readContext();
+            applyFeatureCss(context);
+            const profile = applyAppearance(context);
             updatePanelStatus(profile);
             return profile;
         };
-        applyFeatureCss();
 
         const pauseIfHidden = function (video) {
             if (video && state.pauseHidden && shouldPauseWhenHidden(state, document.hidden, video.paused)) {
@@ -1003,8 +1003,9 @@
             root.style.setProperty('--ycl-dock-offset', right + 'px');
         };
         const updateContext = function () {
-            applyFeatureCss();
-            const profile = applyAppearance();
+            const context = readContext();
+            applyFeatureCss(context);
+            const profile = applyAppearance(context);
             updatePanelStatus(profile);
         };
         const handleNavigation = function () {

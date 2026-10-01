@@ -20,9 +20,10 @@ dependency.
 1. `loadState()` reads `ycl-features-v1` using `GM_getValue`, validates stored
    booleans, appearance choices and accent, and supplies defaults for absent or
    malformed values. Existing feature and skin settings remain compatible.
-2. `init()` injects panel/appearance CSS once, applies enabled feature and skin
-   CSS, mounts the settings panel using DOM APIs, and registers event-driven
-   updates. It does not poll or sweep overlays on a timer.
+2. `init()` injects panel/appearance CSS once, mounts the settings panel using
+   DOM APIs, and registers event-driven updates. Each update reads one context
+   snapshot for both the appearance profile and feature CSS; unchanged feature
+   CSS is not rewritten. It does not poll or sweep overlays on a timer.
 3. `resolveAdaptiveProfile(state, context)` is pure. `readContext()` supplies
    the current route, viewport breakpoint and supported accessibility media
    preferences. Manual selections always take precedence over automatic
