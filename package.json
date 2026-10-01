@@ -1,6 +1,6 @@
 {
   "name": "youtube-custom-light",
-  "version": "1.2.1",
+  "version": "1.2.2",
   "private": true,
   "description": "Single-file YouTube userscript with adaptive appearance settings.",
   "license": "MIT",

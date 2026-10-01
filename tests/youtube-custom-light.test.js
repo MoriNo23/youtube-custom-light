@@ -26,6 +26,13 @@ test('overlay handling stays event-driven and does not add a periodic sweep', ()
     assert.doesNotMatch(source, /setInterval\s*\(/);
 });
 
+test('runtime reuses each context snapshot and avoids rewriting identical feature CSS', () => {
+    const source = fs.readFileSync(scriptPath, 'utf8');
+    assert.match(source, /const context = readContext\(\);\s*applyFeatureCss\(context\);\s*const profile = applyAppearance\(context\);/);
+    assert.match(source, /if \(featuresNode\.textContent !== css\) featuresNode\.textContent = css;/);
+    assert.doesNotMatch(source, /applyFeatureCss\(\);/);
+});
+
 test('loadState validates booleans, appearance choices, and the selected accent', () => {
     const state = script.loadState(JSON.stringify({
         pauseHidden: false,
